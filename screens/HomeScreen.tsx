@@ -19,11 +19,12 @@ import {
   Users,
   Upload,
   Disc3,
+  MessageCircle, // ĐÃ THÊM
 } from "lucide-react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 const { width } = Dimensions.get("window")
-const CARD_WIDTH = (width - 48 - 18) / 4 // 4 cards, gap 6 → 18px
+const CARD_WIDTH = (width - 48 - 18) / 4
 const ALBUM_CARD_WIDTH = width * 0.58
 
 // === DỮ LIỆU ===
@@ -80,12 +81,7 @@ const albums = [
     type: "Public Playlist",
     totalTracks: 36,
     duration: "1 hour 30 minutes",
-    coverImages: [
-      require("../assets/i1.jpg"),
-      require("../assets/i1.jpg"),
-      require("../assets/i1.jpg"),
-      require("../assets/i1.jpg"),
-    ],
+    coverImages: Array(4).fill(require("../assets/i1.jpg")),
   },
   {
     id: "a2",
@@ -94,12 +90,7 @@ const albums = [
     type: "Album",
     totalTracks: 12,
     duration: "45 minutes",
-    coverImages: [
-      require("../assets/i1.jpg"),
-      require("../assets/i1.jpg"),
-      require("../assets/i1.jpg"),
-      require("../assets/i1.jpg"),
-    ],
+    coverImages: Array(4).fill(require("../assets/i1.jpg")),
   },
   {
     id: "a3",
@@ -108,12 +99,7 @@ const albums = [
     type: "Album",
     totalTracks: 18,
     duration: "1h 12m",
-    coverImages: [
-      require("../assets/i1.jpg"),
-      require("../assets/i1.jpg"),
-      require("../assets/i1.jpg"),
-      require("../assets/i1.jpg"),
-    ],
+    coverImages: Array(4).fill(require("../assets/i1.jpg")),
   },
 ]
 
@@ -139,21 +125,17 @@ interface Props {
   onPlay: (track: Track) => void
   onSearch: () => void
   onOpenAlbum: (album: Album) => void
+  onOpenChat: () => void // ĐÃ THÊM PROP
 }
 
-export default function HomeScreen({ onPlay, onSearch, onOpenAlbum }: Props) {
+export default function HomeScreen({ onPlay, onSearch, onOpenAlbum, onOpenChat }: Props) {
   const [featureIndex, setFeatureIndex] = useState(0)
   const [trendingStart, setTrendingStart] = useState(0)
   const [newestStart, setNewestStart] = useState(0)
   const itemsPerView = 4
 
-  const handlePlayTrack = (track: Track) => {
-    onPlay(track)
-  }
-
-  const handleOpenAlbum = (album: Album) => {
-    onOpenAlbum(album) // GIỮ NGUYÊN NHƯ CŨ – HOẠT ĐỘNG BÌNH THƯỜNG
-  }
+  const handlePlayTrack = (track: Track) => onPlay(track)
+  const handleOpenAlbum = (album: Album) => onOpenAlbum(album)
 
   const currentFeature = features[featureIndex]
   const Icon = currentFeature.icon
@@ -161,12 +143,17 @@ export default function HomeScreen({ onPlay, onSearch, onOpenAlbum }: Props) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        {/* HEADER */}
+        {/* HEADER – ĐÃ BỔ SUNG NÚT CHAT */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Vibe Melody</Text>
-          <TouchableOpacity onPress={onSearch} style={styles.searchButton}>
-            <Search color="#60a5fa" size={24} />
-          </TouchableOpacity>
+          <View style={styles.headerRight}>
+            <TouchableOpacity onPress={onSearch} style={styles.iconButton}>
+              <Search color="#60a5fa" size={24} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onOpenChat} style={styles.iconButton}>
+              <MessageCircle color="#60a5fa" size={24} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* FEATURE CAROUSEL */}
@@ -182,34 +169,29 @@ export default function HomeScreen({ onPlay, onSearch, onOpenAlbum }: Props) {
             <Text style={styles.featureDesc}>{currentFeature.description}</Text>
           </View>
 
-          {/* Controls */}
           <View style={styles.featureControls}>
             <TouchableOpacity
-              onPress={() => setFeatureIndex((prev) => (prev === 0 ? features.length - 1 : prev - 1))}
+              onPress={() => setFeatureIndex(prev => (prev === 0 ? features.length - 1 : prev - 1))}
               style={styles.controlBtn}
             >
               <ChevronLeft color="#fff" size={20} />
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => setFeatureIndex((prev) => (prev === features.length - 1 ? 0 : prev + 1))}
+              onPress={() => setFeatureIndex(prev => (prev === features.length - 1 ? 0 : prev + 1))}
               style={styles.controlBtn}
             >
               <ChevronRight color="#fff" size={20} />
             </TouchableOpacity>
           </View>
 
-          {/* Dots */}
           <View style={styles.dots}>
             {features.map((_, i) => (
-              <View
-                key={i}
-                style={[styles.dot, i === featureIndex && styles.dotActive]}
-              />
+              <View key={i} style={[styles.dot, i === featureIndex && styles.dotActive]} />
             ))}
           </View>
         </View>
 
-        {/* ALBUMS SECTION – UI ĐẸP HƠN, GIỮ NGUYÊN DỮ LIỆU & XỬ LÝ */}
+        {/* ALBUMS */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Featured Albums</Text>
@@ -223,14 +205,10 @@ export default function HomeScreen({ onPlay, onSearch, onOpenAlbum }: Props) {
               {albums.map((album, index) => (
                 <TouchableOpacity
                   key={album.id}
-                  style={[
-                    styles.albumCard,
-                    index === 0 && styles.albumCardFirst,
-                  ]}
-                  onPress={() => handleOpenAlbum(album)} // GIỮ NGUYÊN – HOẠT ĐỘNG BÌNH THƯỜNG
+                  style={[styles.albumCard, index === 0 && styles.albumCardFirst]}
+                  onPress={() => handleOpenAlbum(album)}
                   activeOpacity={0.85}
                 >
-                  {/* 4 ẢNH NHỎ – SẠCH, ĐẸP */}
                   <View style={styles.albumCoverGrid}>
                     {album.coverImages.slice(0, 4).map((img, i) => (
                       <View key={i} style={styles.albumCoverWrapper}>
@@ -239,14 +217,9 @@ export default function HomeScreen({ onPlay, onSearch, onOpenAlbum }: Props) {
                     ))}
                   </View>
 
-                  {/* INFO */}
                   <View style={styles.albumInfo}>
-                    <Text style={styles.albumName} numberOfLines={1}>
-                      {album.name}
-                    </Text>
-                    <Text style={styles.albumArtist} numberOfLines={1}>
-                      {album.artist}
-                    </Text>
+                    <Text style={styles.albumName} numberOfLines={1}>{album.name}</Text>
+                    <Text style={styles.albumArtist} numberOfLines={1}>{album.artist}</Text>
                     <View style={styles.albumMetaRow}>
                       <Disc3 color="#60a5fa" size={13} />
                       <Text style={styles.albumMeta}>
@@ -255,7 +228,6 @@ export default function HomeScreen({ onPlay, onSearch, onOpenAlbum }: Props) {
                     </View>
                   </View>
 
-                  {/* TYPE BADGE */}
                   <View style={[
                     styles.typeBadge,
                     album.type === "Album" ? styles.albumBadge : styles.playlistBadge
@@ -270,7 +242,7 @@ export default function HomeScreen({ onPlay, onSearch, onOpenAlbum }: Props) {
           </ScrollView>
         </View>
 
-        {/* TRENDING SECTION */}
+        {/* TRENDING */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Trending</Text>
@@ -294,12 +266,12 @@ export default function HomeScreen({ onPlay, onSearch, onOpenAlbum }: Props) {
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={styles.cardRow}>
-              {trending.slice(trendingStart, trendingStart + itemsPerView).map((item) => (
+              {trending.slice(trendingStart, trendingStart + itemsPerView).map(item => (
                 <TouchableOpacity
                   key={item.id}
                   style={styles.musicCard}
-                  activeOpacity={0.8}
                   onPress={() => handlePlayTrack(item)}
+                  activeOpacity={0.8}
                 >
                   <View style={styles.imageContainer}>
                     <Image source={item.image} style={styles.cardImage} resizeMode="cover" />
@@ -315,7 +287,7 @@ export default function HomeScreen({ onPlay, onSearch, onOpenAlbum }: Props) {
           </ScrollView>
         </View>
 
-        {/* NEWEST SECTION */}
+        {/* NEWEST */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Newest</Text>
@@ -339,12 +311,12 @@ export default function HomeScreen({ onPlay, onSearch, onOpenAlbum }: Props) {
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={styles.cardRow}>
-              {newest.slice(newestStart, newestStart + itemsPerView).map((item) => (
+              {newest.slice(newestStart, newestStart + itemsPerView).map(item => (
                 <TouchableOpacity
                   key={item.id}
                   style={styles.musicCard}
-                  activeOpacity={0.8}
                   onPress={() => handlePlayTrack(item)}
+                  activeOpacity={0.8}
                 >
                   <View style={styles.imageContainer}>
                     <Image source={item.image} style={styles.cardImage} resizeMode="cover" />
@@ -366,7 +338,7 @@ export default function HomeScreen({ onPlay, onSearch, onOpenAlbum }: Props) {
   )
 }
 
-// === STYLES – ĐÃ CẢI TIẾN UI PHẦN ALBUM ===
+// === STYLES – ĐÃ CẬP NHẬT HEADER VỚI NÚT CHAT ===
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "#0f172a" },
   container: { flex: 1 },
@@ -381,8 +353,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#1e293b",
   },
-  searchButton: { padding: 4 },
   headerTitle: { fontSize: 18, fontWeight: "bold", color: "#fff", fontFamily: "DancingScript_700Bold" },
+  headerRight: { flexDirection: "row", gap: 12 },
+  iconButton: { padding: 4 },
 
   // FEATURE CAROUSEL
   featureContainer: {
@@ -395,50 +368,13 @@ const styles = StyleSheet.create({
   },
   featureImage: { ...StyleSheet.absoluteFillObject },
   gradientOverlay: { ...StyleSheet.absoluteFillObject, opacity: 0.6 },
-  featureContent: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 24,
-    zIndex: 10,
-  },
-  featureIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
-  },
+  featureContent: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 24, zIndex: 10 },
+  featureIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: "rgba(255,255,255,0.2)", justifyContent: "center", alignItems: "center", marginBottom: 16 },
   featureTitle: { fontSize: 28, fontWeight: "bold", color: "#fff", marginBottom: 8, fontFamily: "DancingScript_700Bold" },
   featureDesc: { fontSize: 15, color: "#e2e8f0", lineHeight: 22, fontFamily: "Geist" },
-  featureControls: {
-    position: "absolute",
-    bottom: 24,
-    right: 24,
-    flexDirection: "row",
-    gap: 8,
-    zIndex: 10,
-  },
-  controlBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  dots: {
-    position: "absolute",
-    bottom: 24,
-    left: "50%",
-    transform: [{ translateX: -30 }],
-    flexDirection: "row",
-    gap: 8,
-    zIndex: 10,
-  },
+  featureControls: { position: "absolute", bottom: 24, right: 24, flexDirection: "row", gap: 8, zIndex: 10 },
+  controlBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center" },
+  dots: { position: "absolute", bottom: 24, left: "50%", transform: [{ translateX: -30 }], flexDirection: "row", gap: 8, zIndex: 10 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.5)" },
   dotActive: { width: 24, backgroundColor: "#fff" },
 
@@ -449,67 +385,26 @@ const styles = StyleSheet.create({
   seeAllBtn: { paddingHorizontal: 8, paddingVertical: 4 },
   seeAllText: { color: "#60a5fa", fontSize: 14, fontWeight: "600" },
 
-  // ALBUM CARD – UI ĐẸP HƠN
+  // ALBUM CARD
   albumRow: { flexDirection: "row" },
-  albumCard: {
-    width: ALBUM_CARD_WIDTH,
-    backgroundColor: "#1e293b",
-    borderRadius: 16,
-    overflow: "hidden",
-    marginRight: 16,
-    position: "relative",
-  },
+  albumCard: { width: ALBUM_CARD_WIDTH, backgroundColor: "#1e293b", borderRadius: 16, overflow: "hidden", marginRight: 16, position: "relative" },
   albumCardFirst: { marginLeft: 0 },
-
-  // 4 ẢNH NHỎ – SẠCH, CÓ VIỀN
-  albumCoverGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    width: "100%",
-    height: ALBUM_CARD_WIDTH,
-    padding: 8,
-    gap: 4,
-  },
-  albumCoverWrapper: {
-    width: "48%",
-    height: "48%",
-    borderRadius: 8,
-    overflow: "hidden",
-    backgroundColor: "#334155",
-  },
+  albumCoverGrid: { flexDirection: "row", flexWrap: "wrap", width: "100%", height: ALBUM_CARD_WIDTH, padding: 8, gap: 4 },
+  albumCoverWrapper: { width: "48%", height: "48%", borderRadius: 8, overflow: "hidden", backgroundColor: "#334155" },
   albumCover: { width: "100%", height: "100%" },
-
-  // INFO
   albumInfo: { paddingHorizontal: 14, paddingBottom: 14 },
   albumName: { fontSize: 15.5, fontWeight: "bold", color: "#fff", marginBottom: 4 },
   albumArtist: { fontSize: 13.5, color: "#94a3b8", marginBottom: 6 },
   albumMetaRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   albumMeta: { fontSize: 12.5, color: "#64748b" },
-
-  // TYPE BADGE
-  typeBadge: {
-    position: "absolute",
-    top: 12,
-    left: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: "rgba(0,0,0,0.6)",
-  },
+  typeBadge: { position: "absolute", top: 12, left: 12, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: "rgba(0,0,0,0.6)" },
   albumBadge: { backgroundColor: "#60a5fa" },
   playlistBadge: { backgroundColor: "#10b981" },
   typeText: { color: "#fff", fontSize: 11, fontWeight: "600" },
 
   // NAV BUTTONS
   navButtons: { flexDirection: "row", gap: 8 },
-  navBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#1e293b",
-    justifyContent: "center",
-    alignItems: "center",
-  },
+  navBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#1e293b", justifyContent: "center", alignItems: "center" },
   navBtnDisabled: { opacity: 0.5 },
 
   // CARD ROW
