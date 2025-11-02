@@ -1,42 +1,36 @@
 // components/BottomTabBar.tsx
-import { View, TouchableOpacity, Text, StyleSheet } from "react-native"
-import { Home, Search, ListMusic, Upload } from "lucide-react-native"
+import { View, TouchableOpacity, Text, StyleSheet } from "react-native";
+import { Home, Search, ListMusic, CircleUser } from "lucide-react-native";
 
-// Chỉ nhận 4 trang chính
-type TabScreen = "home" | "search" | "library" | "upload"
+export type TabScreen = "home" | "search" | "library" | "profile";
 
 interface Props {
-  currentScreen: TabScreen
-  onNavigate: (screen: TabScreen) => void
+  currentScreen: TabScreen;
+  onNavigate: (screen: TabScreen) => void;
 }
 
-const tabs = [
-  { name: "Home", icon: Home, screen: "home" as TabScreen },
-  { name: "Search", icon: Search, screen: "search" as TabScreen },
-  { name: "Library", icon: ListMusic, screen: "library" as TabScreen },
-  { name: "Upload", icon: Upload, screen: "upload" as TabScreen },
-]
+const tabs: { name: string; screen: TabScreen; icon: any }[] = [
+  { name: "Home", screen: "home", icon: Home },
+  { name: "Search", screen: "search", icon: Search },
+  { name: "Library", screen: "library", icon: ListMusic },
+  { name: "Profile", screen: "profile", icon: CircleUser },
+];
 
 export default function BottomTabBar({ currentScreen, onNavigate }: Props) {
   return (
     <View style={styles.container}>
-      {tabs.map((tab) => {
-        const isActive = currentScreen === tab.screen
+      {tabs.map((t) => {
+        const isActive = currentScreen === t.screen;
+        const Icon = t.icon;
         return (
-          <TouchableOpacity
-            key={tab.screen}
-            style={styles.tab}
-            onPress={() => onNavigate(tab.screen)}
-          >
-            <tab.icon size={24} color={isActive ? "#60a5fa" : "#94a3b8"} />
-            <Text style={[styles.label, isActive && styles.labelActive]}>
-              {tab.name}
-            </Text>
+          <TouchableOpacity key={t.screen} style={styles.tab} onPress={() => onNavigate(t.screen)} activeOpacity={0.9}>
+            <Icon size={24} color={isActive ? "#60a5fa" : "#94a3b8"} />
+            <Text style={[styles.label, isActive && styles.labelActive]}>{t.name}</Text>
           </TouchableOpacity>
-        )
+        );
       })}
     </View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -48,6 +42,6 @@ const styles = StyleSheet.create({
     borderTopColor: "#334155",
   },
   tab: { flex: 1, justifyContent: "center", alignItems: "center", gap: 4 },
-  label: { fontSize: 10, color: "#94a3b8", fontFamily: "Geist" },
+  label: { fontSize: 10, color: "#94a3b8" },
   labelActive: { color: "#60a5fa", fontWeight: "600" },
-})
+});
