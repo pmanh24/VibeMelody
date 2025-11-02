@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import { useState } from "react"
+import { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -9,7 +9,9 @@ import {
   ScrollView,
   Image,
   Alert,
-} from "react-native"
+  ActivityIndicator,
+} from "react-native";
+import axios from "axios";
 import {
   Plus,
   Edit,
@@ -18,89 +20,91 @@ import {
   Trash2,
   Music,
   ChevronLeft,
-} from "lucide-react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
+} from "lucide-react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-const I1_IMAGE = require("../assets/i1.jpg")
-
-// === DỮ LIỆU MẪU ===
-const mockAlbums = [
-  {
-    id: "1",
-    name: "Gymv2",
-    artist: "Vo Anh Hoang",
-    year: 2023,
-    tracks: 36,
-    visible: true,
-    image: I1_IMAGE,
-  },
-  {
-    id: "2",
-    name: "Urban Nights",
-    artist: "Vo Anh Hoang",
-    year: 2024,
-    tracks: 12,
-    visible: true,
-    image: I1_IMAGE,
-  },
-  {
-    id: "3",
-    name: "Coastal Dreams",
-    artist: "Vo Anh Hoang",
-    year: 2024,
-    tracks: 8,
-    visible: false,
-    image: I1_IMAGE,
-  },
-]
+const API_BASE = "http://192.168.0.101:5000/api/albums"; // 🔧 Thay IP thật khi test trên Expo
 
 interface Album {
-  id: string
-  name: string
-  artist: string
-  year: number
-  tracks: number
-  visible: boolean
-  image: any
+  _id: string;
+  title: string;
+  artistName: string;
+  year: number;
+  visible: boolean;
+  coverImage?: string;
+  songs: any[];
 }
 
 interface Props {
-  onBack: () => void
-  onCreateAlbum: () => void
-  onEditAlbum: (albumId: string) => void
+  onBack: () => void;
+  onCreateAlbum: () => void;
+  onEditAlbum: (albumId: string) => void;
 }
 
-export default function ManageAlbumsScreen({ onBack, onCreateAlbum, onEditAlbum }: Props) {
-  const [albums, setAlbums] = useState<Album[]>(mockAlbums)
+export default function ManageAlbumsScreen({
+  onBack,
+  onCreateAlbum,
+  onEditAlbum,
+}: Props) {
+  const [albums, setAlbums] = useState<Album[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const toggleVisibility = (albumId: string) => {
-    setAlbums(prev =>
-      prev.map(album =>
-        album.id === albumId ? { ...album, visible: !album.visible } : album
-      )
-    )
-  }
+  const fetchAlbums = async () => {
+    try {
+      const res = await axios.get(API_BASE);
+      setAlbums(res.data);
+    } catch (err) {
+      console.error("[Fetch albums error]", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleVisibility = async (albumId: string) => {
+    try {
+      const res = await axios.patch(`${API_BASE}/${albumId}/visibility`);
+      setAlbums((prev) =>
+        prev.map((a) => (a._id === albumId ? res.data.album : a))
+      );
+    } catch (err) {
+      console.error("Toggle visibility error", err);
+    }
+  };
 
   const deleteAlbum = (albumId: string) => {
-    Alert.alert(
-      "Xóa album",
-      "Bạn có chắc chắn muốn xóa album này?",
-      [
-        { text: "Hủy", style: "cancel" },
-        {
-          text: "Xóa",
-          style: "destructive",
-          onPress: () => {
-            setAlbums(prev => prev.filter(album => album.id !== albumId))
-          },
+    Alert.alert("Xóa album", "Bạn có chắc muốn xóa album này?", [
+      { text: "Hủy", style: "cancel" },
+      {
+        text: "Xóa",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await axios.delete(`${API_BASE}/${albumId}`);
+            setAlbums((prev) => prev.filter((a) => a._id !== albumId));
+          } catch (err) {
+            console.error("Delete album error", err);
+          }
         },
-      ]
-    )
-  }
+      },
+    ]);
+  };
+
+  useEffect(() => {
+    fetchAlbums();
+  }, []);
+
+  if (loading)
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loader}>
+          <ActivityIndicator size="large" color="#60a5fa" />
+        </View>
+      </SafeAreaView>
+    );
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.container}>
         {/* HEADER */}
         <View style={styles.header}>
           <TouchableOpacity onPress={onBack} style={styles.backButton}>
@@ -122,20 +126,29 @@ export default function ManageAlbumsScreen({ onBack, onCreateAlbum, onEditAlbum 
             <View style={styles.emptyState}>
               <Music color="#64748b" size={48} />
               <Text style={styles.emptyTitle}>Chưa có album nào</Text>
-              <Text style={styles.emptyDesc}>Tạo album đầu tiên của bạn!</Text>
+              <Text style={styles.emptyDesc}>
+                Tạo album đầu tiên của bạn!
+              </Text>
             </View>
           ) : (
-            albums.map(album => (
+            albums.map((album) => (
               <View
-                key={album.id}
+                key={album._id}
                 style={[
                   styles.albumCard,
                   !album.visible && styles.albumHidden,
                 ]}
               >
-                {/* COVER IMAGE */}
+                {/* COVER */}
                 <View style={styles.coverContainer}>
-                  <Image source={album.image} style={styles.coverImage} />
+                  <Image
+                    source={
+                      album.coverImage
+                        ? { uri: album.coverImage }
+                        : require("../assets/i1.jpg")
+                    }
+                    style={styles.coverImage}
+                  />
                   {!album.visible && (
                     <View style={styles.hiddenOverlay}>
                       <EyeOff color="#fff" size={32} />
@@ -145,25 +158,22 @@ export default function ManageAlbumsScreen({ onBack, onCreateAlbum, onEditAlbum 
 
                 {/* INFO */}
                 <View style={styles.albumInfo}>
-                  <Text style={styles.albumName} numberOfLines={1}>
-                    {album.name}
-                  </Text>
-                  <Text style={styles.albumArtist} numberOfLines={1}>
-                    {album.artist}
-                  </Text>
+                  <Text style={styles.albumName}>{album.title}</Text>
+                  <Text style={styles.albumArtist}>{album.artistName}</Text>
                   <View style={styles.albumMeta}>
                     <Music color="#94a3b8" size={14} />
                     <Text style={styles.metaText}>
-                      {album.tracks} bài • {album.year}
+                      {album.songs?.length || 0} bài •{" "}
+                      {album.year || "Không rõ"}
                     </Text>
                   </View>
                 </View>
 
-                {/* ACTION BUTTONS */}
+                {/* ACTIONS */}
                 <View style={styles.actionRow}>
                   <TouchableOpacity
                     style={styles.editBtn}
-                    onPress={() => onEditAlbum(album.id)}
+                    onPress={() => onEditAlbum(album._id)}
                   >
                     <Edit color="#fff" size={18} />
                     <Text style={styles.editText}>Sửa</Text>
@@ -171,7 +181,7 @@ export default function ManageAlbumsScreen({ onBack, onCreateAlbum, onEditAlbum 
 
                   <TouchableOpacity
                     style={styles.visibilityBtn}
-                    onPress={() => toggleVisibility(album.id)}
+                    onPress={() => toggleVisibility(album._id)}
                   >
                     {album.visible ? (
                       <Eye color="#94a3b8" size={20} />
@@ -182,7 +192,7 @@ export default function ManageAlbumsScreen({ onBack, onCreateAlbum, onEditAlbum 
 
                   <TouchableOpacity
                     style={styles.deleteBtn}
-                    onPress={() => deleteAlbum(album.id)}
+                    onPress={() => deleteAlbum(album._id)}
                   >
                     <Trash2 color="#ef4444" size={20} />
                   </TouchableOpacity>
@@ -191,19 +201,16 @@ export default function ManageAlbumsScreen({ onBack, onCreateAlbum, onEditAlbum 
             ))
           )}
         </View>
-
-        <View style={{ height: 100 }} />
       </ScrollView>
     </SafeAreaView>
-  )
+  );
 }
 
-// === STYLES – MOBILE 1 CỘT, ĐẸP, CHUẨN ===
+// === STYLES ===
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "#0f172a" },
   container: { flex: 1 },
-
-  // HEADER
+  loader: { flex: 1, justifyContent: "center", alignItems: "center" },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -214,9 +221,12 @@ const styles = StyleSheet.create({
     borderBottomColor: "#1e293b",
   },
   backButton: { padding: 4 },
-  title: { fontSize: 20, fontWeight: "bold", color: "#fff", fontFamily: "DancingScript_700Bold" },
-
-  // CREATE BUTTON
+  title: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#fff",
+    fontFamily: "DancingScript_700Bold",
+  },
   createBtn: {
     flexDirection: "row",
     backgroundColor: "#60a5fa",
@@ -231,8 +241,6 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   createBtnText: { color: "#000", fontSize: 16, fontWeight: "600" },
-
-  // ALBUM LIST
   albumList: { paddingHorizontal: 16 },
   albumCard: {
     backgroundColor: "#1e293b",
@@ -243,8 +251,6 @@ const styles = StyleSheet.create({
     borderColor: "#334155",
   },
   albumHidden: { opacity: 0.65 },
-
-  // COVER
   coverContainer: { position: "relative" },
   coverImage: { width: "100%", height: 180 },
   hiddenOverlay: {
@@ -253,15 +259,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-
-  // INFO
   albumInfo: { padding: 16 },
-  albumName: { fontSize: 17, fontWeight: "bold", color: "#fff", marginBottom: 4 },
+  albumName: { fontSize: 17, fontWeight: "bold", color: "#fff" },
   albumArtist: { fontSize: 14, color: "#94a3b8", marginBottom: 8 },
   albumMeta: { flexDirection: "row", alignItems: "center", gap: 6 },
   metaText: { fontSize: 13, color: "#94a3b8" },
-
-  // ACTION ROW
   actionRow: {
     flexDirection: "row",
     paddingHorizontal: 16,
@@ -295,12 +297,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-
-  // EMPTY STATE
   emptyState: {
     alignItems: "center",
     paddingVertical: 80,
   },
   emptyTitle: { fontSize: 18, fontWeight: "600", color: "#fff", marginTop: 16 },
-  emptyDesc: { fontSize: 14, color: "#64748b", textAlign: "center", marginTop: 8, paddingHorizontal: 40 },
-})
+  emptyDesc: {
+    fontSize: 14,
+    color: "#64748b",
+    textAlign: "center",
+    marginTop: 8,
+    paddingHorizontal: 40,
+  },
+});

@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import { useState } from "react"
+import { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -9,7 +9,8 @@ import {
   ScrollView,
   Image,
   TextInput,
-} from "react-native"
+  ActivityIndicator,
+} from "react-native";
 import {
   ChevronLeft,
   Plus,
@@ -18,54 +19,25 @@ import {
   Clock,
   X,
   Edit,
-} from "lucide-react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
-
-const I1_IMAGE = require("../assets/i1.jpg")
-
-// === DỮ LIỆU MẪU ===
-const mockTracks = [
-  {
-    id: "lib1",
-    name: "Vengeance",
-    artist: "Vo Anh Hoang",
-    image: I1_IMAGE,
-    duration: 214,
-    date: "Oct 7, 2023",
-  },
-  {
-    id: "lib2",
-    name: "JUDAS",
-    artist: "Vo Anh Hoang",
-    image: I1_IMAGE,
-    duration: 197,
-    date: "Oct 7, 2023",
-  },
-  {
-    id: "lib3",
-    name: "POOR - Sped Up",
-    artist: "Vo Anh Hoang",
-    image: I1_IMAGE,
-    duration: 210,
-    date: "Oct 7, 2023",
-  },
-]
+} from "lucide-react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 interface Track {
-  id: string
-  name: string
-  artist: string
-  image: any
-  duration: number
-  date?: string
+  _id: string;
+  title: string;
+  artist: string;
+  imageUrl?: string;
+  audioUrl?: string;
+  duration?: number;
+  createdAt?: string;
 }
 
 interface Props {
-  onBack: () => void
-  onPlay: (track: Track) => void
-  onCreateAlbum: () => void
-  onManageAlbums: () => void
-  onManageMusic: () => void
+  onBack: () => void;
+  onPlay: (track: Track) => void;
+  onCreateAlbum: () => void;
+  onManageAlbums: () => void;
+  onManageMusic: () => void;
 }
 
 export default function LibraryScreen({
@@ -75,20 +47,52 @@ export default function LibraryScreen({
   onManageAlbums,
   onManageMusic,
 }: Props) {
-  const [searchQuery, setSearchQuery] = useState("")
-  const [tracks] = useState(mockTracks)
+  const [searchQuery, setSearchQuery] = useState("");
+  const [tracks, setTracks] = useState<Track[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
+  // 🟢 Fetch từ backend
+  useEffect(() => {
+    const fetchTracks = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch("http://192.168.0.101:5000/api/all"); // ⚠️ đổi URL nếu cần
+        const data = await res.json();
+        setTracks(data);
+      } catch (err) {
+        console.error(err);
+        setError("Không tải được danh sách bài hát.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchTracks();
+  }, []);
+
+  // 🟢 Lọc theo từ khóa tìm kiếm
   const filteredTracks = tracks.filter(
     (t) =>
-      t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.artist.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+      t.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.artist?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins}:${secs.toString().padStart(2, "0")}`
-  }
+  const formatDuration = (seconds?: number) => {
+    if (!seconds) return "--:--";
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const formatDate = (iso?: string) => {
+    if (!iso) return "";
+    const date = new Date(iso);
+    return date.toLocaleDateString("vi-VN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -122,7 +126,7 @@ export default function LibraryScreen({
           )}
         </View>
 
-        {/* ACTION BUTTONS – 3 NÚT NGANG HÀNG */}
+        {/* ACTION BUTTONS */}
         <View style={styles.actionRow}>
           <TouchableOpacity style={styles.createAlbumBtn} onPress={onCreateAlbum}>
             <Plus color="#fff" size={18} />
@@ -142,7 +146,13 @@ export default function LibraryScreen({
 
         {/* TRACK LIST */}
         <ScrollView style={styles.trackList} showsVerticalScrollIndicator={false}>
-          {filteredTracks.length === 0 ? (
+          {loading ? (
+            <ActivityIndicator color="#60a5fa" size="large" style={{ marginTop: 40 }} />
+          ) : error ? (
+            <Text style={{ color: "red", textAlign: "center", marginTop: 40 }}>
+              {error}
+            </Text>
+          ) : filteredTracks.length === 0 ? (
             <View style={styles.emptyState}>
               <Music color="#64748b" size={48} />
               <Text style={styles.emptyTitle}>Chưa có nhạc nào</Text>
@@ -155,15 +165,18 @@ export default function LibraryScreen({
           ) : (
             filteredTracks.map((track, i) => (
               <TouchableOpacity
-                key={track.id}
+                key={track._id}
                 style={styles.trackItem}
                 onPress={() => onPlay(track)}
               >
                 <Text style={styles.trackIndex}>{i + 1}</Text>
-                <Image source={track.image} style={styles.trackImg} />
+                <Image
+                  source={{ uri: track.imageUrl || "https://cdn-icons-png.flaticon.com/512/1384/1384060.png" }}
+                  style={styles.trackImg}
+                />
                 <View style={styles.trackInfo}>
                   <Text style={styles.trackName} numberOfLines={1}>
-                    {track.name}
+                    {track.title}
                   </Text>
                   <Text style={styles.trackArtist} numberOfLines={1}>
                     {track.artist}
@@ -180,10 +193,9 @@ export default function LibraryScreen({
         </ScrollView>
       </View>
     </SafeAreaView>
-  )
+  );
 }
 
-// === STYLES – ĐẸP, SẠCH, 3 NÚT NGANG HÀNG ===
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "#0f172a" },
   container: { flex: 1 },
@@ -199,7 +211,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#1e293b",
   },
   backButton: { padding: 4 },
-  title: { fontSize: 20, fontWeight: "bold", color: "#fff", fontFamily: "DancingScript_700Bold" },
+  title: { fontSize: 20, fontWeight: "bold", color: "#fff" },
 
   // SEARCH
   searchContainer: {
@@ -220,7 +232,7 @@ const styles = StyleSheet.create({
   },
   clearBtn: { position: "absolute", right: 14, top: 14, zIndex: 10, padding: 4 },
 
-  // ACTION BUTTONS – 3 NÚT
+  // ACTION BUTTONS
   actionRow: {
     flexDirection: "row",
     gap: 10,
@@ -295,4 +307,4 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingHorizontal: 40,
   },
-})
+});
