@@ -44,6 +44,9 @@ interface Message {
   isMe: boolean
 }
 
+const GEMINI_API_KEY = "AIzaSyALOm3FOOObguX5kHkJ8yOVldxonf2dLo4";
+
+
 // === DỮ LIỆU ===
 const mockChats: Chat[] = [
   {
@@ -138,40 +141,76 @@ export default function ChatScreen({ onBack }: Props) {
     setTimeout(() => inputRef.current?.focus(), 100)
   }
 
-  const handleSendMessage = () => {
-    if (!message.trim()) return
+  const handleSendMessage = async () => {
+  if (!message.trim()) return;
 
-    const newMessage: Message = {
-      id: Date.now(),
-      sender: "Me",
-      message: message,
-      time: new Date().toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      isMe: true,
-    }
+  const newMessage: Message = {
+    id: Date.now(),
+    sender: "Me",
+    message: message,
+    time: new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+    isMe: true,
+  };
 
-    setAiMessages(prev => [...prev, newMessage])
-    setMessage("")
+  setAiMessages(prev => [...prev, newMessage]);
+  setMessage("");
 
-    if (selectedChat.isAI) {
-      setTimeout(() => {
-        const aiResponse: Message = {
-          id: Date.now() + 1,
+  if (selectedChat.isAI) {
+    try {
+      console.log("[AI] sending:", message);
+
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: message }] }],
+          }),
+        }
+      );
+
+      const data = await res.json();
+      console.log("[AI] response:", data);
+
+      const aiText =
+        data.candidates?.[0]?.content?.parts?.[0]?.text ||
+        "Sorry, I couldn’t get a response.";
+
+      const aiResponse: Message = {
+        id: Date.now() + 1,
+        sender: "Gemini AI",
+        message: aiText,
+        time: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        isMe: false,
+      };
+
+      setAiMessages(prev => [...prev, aiResponse]);
+    } catch (err) {
+      console.error("[AI] error:", err);
+      setAiMessages(prev => [
+        ...prev,
+        {
+          id: Date.now() + 2,
           sender: "Gemini AI",
-          message:
-            "I'm here to help! This is a demo response. In production, this would connect to a real AI service.",
+          message: "⚠️ Network error while contacting AI.",
           time: new Date().toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
           }),
           isMe: false,
-        }
-        setAiMessages(prev => [...prev, aiResponse])
-      }, 1000)
+        },
+      ]);
     }
   }
+};
+
 
   const messages = selectedChat.isAI ? aiMessages : mockMessages
 

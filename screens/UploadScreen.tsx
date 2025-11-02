@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import { useState } from "react"
+import { useState } from "react";
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import {
   Modal,
   ActivityIndicator,
   Alert,
-} from "react-native"
+} from "react-native";
 import {
   ArrowLeft,
   Edit2,
@@ -21,59 +21,60 @@ import {
   Check,
   Image as ImageIcon,
   FileAudio,
-} from "lucide-react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
-import * as DocumentPicker from "expo-document-picker"
-import * as ImagePicker from "expo-image-picker"
-import { api } from "../lib/api" // ĐÃ DÙNG AXIOS NHƯ WEB
-import Toast from "react-native-toast-message"
+} from "lucide-react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import * as DocumentPicker from "expo-document-picker";
+import * as ImagePicker from "expo-image-picker";
+import { api } from "../lib/api"; // ĐÃ DÙNG AXIOS NHƯ WEB
+import * as FileSystem from "expo-file-system/legacy"; // ✅ dùng API mới
+import Toast from "react-native-toast-message";
 
-const I1_IMAGE = require("../assets/i1.jpg")
-const ARTIST_ID = "690793f189c8f89e0773a7b0"
-const ARTIST_NAME_FALLBACK = "Sơn Tùng M-TP"
+const I1_IMAGE = require("../assets/i1.jpg");
+const ARTIST_ID = "690793f189c8f89e0773a7b0";
+const ARTIST_NAME_FALLBACK = "Sơn Tùng M-TP";
 
 interface Track {
-  id: string
-  name: string
-  artist: string
-  duration: number
-  file?: any
-  imageFile?: any
-  imageUrl?: any
+  id: string;
+  name: string;
+  artist: string;
+  duration: number;
+  file?: any;
+  imageFile?: any;
+  imageUrl?: any;
 }
 
 interface Props {
-  onBack: () => void
+  onBack: () => void;
 }
 
 export default function UploadScreen({ onBack }: Props) {
-  const [tracks, setTracks] = useState<Track[]>([])
-  const [editingTrack, setEditingTrack] = useState<Track | null>(null)
+  const [tracks, setTracks] = useState<Track[]>([]);
+  const [editingTrack, setEditingTrack] = useState<Track | null>(null);
   const [editForm, setEditForm] = useState({
     name: "",
     artist: "",
     keepFile: true,
-  })
-  const [saving, setSaving] = useState(false)
+  });
+  const [saving, setSaving] = useState(false);
 
   // === UPLOAD MUSIC + IMAGE (GIỐNG WEB) ===
   const pickTrack = async () => {
     const audioResult = await DocumentPicker.getDocumentAsync({
       type: "audio/*",
       copyToCacheDirectory: true,
-    })
+    });
 
-    if (audioResult.canceled || !audioResult.assets) return
+    if (audioResult.canceled || !audioResult.assets) return;
 
-    const audio = audioResult.assets[0]
+    const audio = audioResult.assets[0];
 
     const imageResult = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       quality: 0.8,
-    })
+    });
 
-    const image = !imageResult.canceled ? imageResult.assets[0] : null
+    const image = !imageResult.canceled ? imageResult.assets[0] : null;
 
     const newTrack: Track = {
       id: Date.now().toString(),
@@ -83,74 +84,104 @@ export default function UploadScreen({ onBack }: Props) {
       file: audio,
       imageFile: image || undefined,
       imageUrl: image ? { uri: image.uri } : I1_IMAGE,
-    }
+    };
 
-    setTracks(prev => [...prev, newTrack])
-  }
+    setTracks((prev) => [...prev, newTrack]);
+  };
 
   // === EDIT TRACK ===
   const startEdit = (track: Track) => {
-    setEditingTrack(track)
+    setEditingTrack(track);
     setEditForm({
       name: track.name,
       artist: track.artist,
       keepFile: true,
-    })
-  }
+    });
+  };
 
   const saveEdit = () => {
-    if (!editingTrack) return
-    setTracks(prev =>
-      prev.map(t =>
+    if (!editingTrack) return;
+    setTracks((prev) =>
+      prev.map((t) =>
         t.id === editingTrack.id
           ? { ...t, name: editForm.name, artist: editForm.artist }
           : t
       )
-    )
-    setEditingTrack(null)
-  }
+    );
+    setEditingTrack(null);
+  };
 
   // === UPLOAD TO SERVER (DÙNG AXIOS) ===
-  const uploadOneSong = async (payload: any) => {
-    const fd = new FormData()
-    fd.append("artistId", payload.artistId)
-    fd.append("artistName", payload.artistName)
-    fd.append("title", payload.title)
-    fd.append("duration", String(payload.duration || 0))
-    if (payload.imageFile) {
+const uploadOneSong = async (payload: any) => {
+  try {
+    console.log("[upload] preparing:", payload.title);
+
+    // ✅ Kiểm tra file tồn tại bằng API mới
+    const fileInfo = await FileSystem.getInfoAsync(payload.audioFile.uri);
+    if (!fileInfo.exists) {
+      throw new Error(`File not found: ${payload.audioFile.uri}`);
+    }
+
+    // 🧱 Tạo form data đúng chuẩn React Native
+    const fd = new FormData();
+    fd.append("artistId", String(payload.artistId));
+    fd.append("artistName", payload.artistName);
+    fd.append("title", payload.title);
+    fd.append("duration", String(payload.duration || 0));
+
+    if (payload.imageFile?.uri) {
       fd.append("imageFile", {
         uri: payload.imageFile.uri,
-        name: payload.imageFile.fileName || "cover.jpg",
+        name: payload.imageFile.name || "cover.jpg",
         type: payload.imageFile.mimeType || "image/jpeg",
-      } as any)
+      } as any);
     }
+
     fd.append("audioFile", {
       uri: payload.audioFile.uri,
-      name: payload.audioFile.name,
+      name: payload.audioFile.name || "song.mp3",
       type: payload.audioFile.mimeType || "audio/mpeg",
-    } as any)
+    } as any);
 
     console.log("[upload] sending:", {
       title: payload.title,
       hasImage: !!payload.imageFile,
-    })
+      uri: payload.audioFile.uri,
+    });
 
-    const res = await api.post("/songs", fd)
-    return res.data
+    // 🚀 Gửi request qua axios
+    const res = await api.post("/songs", fd, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+      transformRequest: () => fd, // giữ nguyên FormData
+    });
+
+    console.log("[upload] success:", res.data);
+    return res.data;
+  } catch (err: any) {
+    console.error(
+      "[upload] FAIL:",
+      payload.title,
+      err.response?.data || err.message
+    );
+    throw err;
   }
+};
 
   const saveAllToServer = async () => {
-    const withFile = tracks.filter(t => !!t.file)
+    const withFile = tracks.filter((t) => !!t.file);
     if (withFile.length === 0) {
-      Toast.show({ type: "error", text1: "Không có file hợp lệ!" })
-      return
+      Toast.show({ type: "error", text1: "Không có file hợp lệ!" });
+      return;
     }
 
-    setSaving(true)
-    let success = 0
+    setSaving(true);
+    let success = 0;
     try {
       for (const t of withFile) {
         try {
+          console.log("[DEBUG] t.file =", t.file);
           await uploadOneSong({
             artistId: ARTIST_ID,
             artistName: (t.artist || ARTIST_NAME_FALLBACK).trim(),
@@ -158,29 +189,33 @@ export default function UploadScreen({ onBack }: Props) {
             duration: t.duration,
             audioFile: t.file,
             imageFile: t.imageFile,
-          })
-          success++
+          });
+          success++;
         } catch (e: any) {
-          console.error("[upload] FAIL:", t.name, e.response?.data || e.message)
-          Toast.show({ type: "error", text1: `Upload thất bại: ${t.name}` })
+          console.error(
+            "[upload] FAIL:",
+            t.name,
+            e.response?.data || e.message
+          );
+          Toast.show({ type: "error", text1: `Upload thất bại: ${t.name}` });
         }
       }
 
       if (success > 0) {
-        setTracks([])
+        setTracks([]);
         Toast.show({
           type: "success",
           text1: `Đã upload ${success}/${withFile.length} bài!`,
-        })
+        });
       }
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   const removeTrack = (id: string) => {
-    setTracks(prev => prev.filter(t => t.id !== id))
-  }
+    setTracks((prev) => prev.filter((t) => t.id !== id));
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -206,9 +241,7 @@ export default function UploadScreen({ onBack }: Props) {
         {tracks.length > 0 && (
           <View style={styles.uploadedSection}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>
-                Đã chọn ({tracks.length})
-              </Text>
+              <Text style={styles.sectionTitle}>Đã chọn ({tracks.length})</Text>
               <TouchableOpacity
                 style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
                 onPress={saveAllToServer}
@@ -226,9 +259,12 @@ export default function UploadScreen({ onBack }: Props) {
             </View>
 
             <View style={styles.trackList}>
-              {tracks.map(track => (
+              {tracks.map((track) => (
                 <View key={track.id} style={styles.trackCard}>
-                  <Image source={track.imageUrl || I1_IMAGE} style={styles.trackImg} />
+                  <Image
+                    source={track.imageUrl || I1_IMAGE}
+                    style={styles.trackImg}
+                  />
                   <View style={styles.trackInfo}>
                     <Text style={styles.trackName} numberOfLines={1}>
                       {track.name}
@@ -265,7 +301,9 @@ export default function UploadScreen({ onBack }: Props) {
               <TextInput
                 style={styles.input}
                 value={editForm.name}
-                onChangeText={text => setEditForm({ ...editForm, name: text })}
+                onChangeText={(text) =>
+                  setEditForm({ ...editForm, name: text })
+                }
               />
             </View>
 
@@ -274,14 +312,18 @@ export default function UploadScreen({ onBack }: Props) {
               <TextInput
                 style={styles.input}
                 value={editForm.artist}
-                onChangeText={text => setEditForm({ ...editForm, artist: text })}
+                onChangeText={(text) =>
+                  setEditForm({ ...editForm, artist: text })
+                }
               />
             </View>
 
             <View style={styles.checkboxRow}>
               <TouchableOpacity
                 style={styles.checkbox}
-                onPress={() => setEditForm(prev => ({ ...prev, keepFile: !prev.keepFile }))}
+                onPress={() =>
+                  setEditForm((prev) => ({ ...prev, keepFile: !prev.keepFile }))
+                }
               >
                 {editForm.keepFile && <Check color="#60a5fa" size={16} />}
               </TouchableOpacity>
@@ -305,7 +347,7 @@ export default function UploadScreen({ onBack }: Props) {
 
       <Toast />
     </SafeAreaView>
-  )
+  );
 }
 
 // === STYLES – GIỐNG WEB 95% ===
@@ -323,7 +365,12 @@ const styles = StyleSheet.create({
     borderBottomColor: "#1e293b",
   },
   backButton: { padding: 4 },
-  title: { fontSize: 20, fontWeight: "bold", color: "#fff", fontFamily: "DancingScript_700Bold" },
+  title: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#fff",
+    fontFamily: "DancingScript_700Bold",
+  },
 
   card: {
     marginHorizontal: 16,
@@ -393,7 +440,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#334155",
   },
-  modalTitle: { fontSize: 19, fontWeight: "bold", color: "#fff", marginBottom: 16 },
+  modalTitle: {
+    fontSize: 19,
+    fontWeight: "bold",
+    color: "#fff",
+    marginBottom: 16,
+  },
   inputGroup: { marginBottom: 16 },
   label: { color: "#94a3b8", fontSize: 14, marginBottom: 6 },
   input: {
@@ -406,7 +458,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#334155",
   },
-  checkboxRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 16 },
+  checkboxRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 16,
+  },
   checkbox: {
     width: 24,
     height: 24,
@@ -434,4 +491,4 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   saveEditText: { color: "#000", fontWeight: "600" },
-})
+});
