@@ -1,4 +1,6 @@
 {
+  "name": "MyMusicApp",
+  "main": "index.tsx",
   "expo": {
     "name": "MyMusicApp",
     "slug": "MyMusicApp",
