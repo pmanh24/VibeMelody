@@ -1,27 +1,32 @@
-"use client"
+
 
 import { View, TouchableOpacity, Text, StyleSheet } from "react-native"
-import { Home, Search, ListMusic, Upload, MessageCircle } from "lucide-react-native"
+import { Home, Search, ListMusic, Upload, MessageCircle, CircleUser } from "lucide-react-native"
 
 // ĐÃ MỞ RỘNG: 5 TAB (bao gồm chat)
-type TabScreen = "home" | "search" | "library" | "upload" | "chat"
+type TabScreen = "home" | "search" | "library" | "upload" | "chat"| "profile";
+
 
 interface Props {
-  currentScreen: TabScreen
-  onNavigate: (screen: TabScreen) => void
+  currentScreen: TabScreen;
+  onNavigate: (screen: TabScreen) => void;
 }
+
 
 const tabs = [
   { name: "Home", icon: Home, screen: "home" as TabScreen },
   { name: "Search", icon: Search, screen: "search" as TabScreen },
   { name: "Library", icon: ListMusic, screen: "library" as TabScreen },
   { name: "Upload", icon: Upload, screen: "upload" as TabScreen },
-  { name: "Chat", icon: MessageCircle, screen: "chat" as TabScreen }, // ĐÃ THÊM
+  { name: "Chat", icon: MessageCircle, screen: "chat" as TabScreen },
+         { name: "Profile", screen: "profile", icon: CircleUser },// ĐÃ THÊM
 ]
+
 
 export default function BottomTabBar({ currentScreen, onNavigate }: Props) {
   return (
     <View style={styles.container}>
+
       {tabs.map((tab) => {
         const isActive = currentScreen === tab.screen
         const Icon = tab.icon
@@ -42,10 +47,10 @@ export default function BottomTabBar({ currentScreen, onNavigate }: Props) {
               {tab.name}
             </Text>
           </TouchableOpacity>
-        )
+        );
       })}
     </View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -72,4 +77,9 @@ const styles = StyleSheet.create({
     color: "#60a5fa",
     fontWeight: "600",
   },
+
+  tab: { flex: 1, justifyContent: "center", alignItems: "center", gap: 4 },
+  label: { fontSize: 10, color: "#94a3b8" },
+  labelActive: { color: "#60a5fa", fontWeight: "600" },
+});
 })

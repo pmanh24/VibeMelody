@@ -1,35 +1,53 @@
+// App.tsx
 "use client";
 
 import { useEffect, useState } from "react";
-import { View, StyleSheet } from "react-native";
-import { SafeAreaView as SafeAreaViewRN } from "react-native-safe-area-context";
+import { View, StyleSheet, Alert } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-// === SCREENS ===
+
+// screens có sẵn của bạn
 import SplashScreen from "./screens/SplashScreen";
 import HomeScreen from "./screens/HomeScreen";
 import SearchScreen from "./screens/SearchScreen";
 import LibraryScreen from "./screens/LibraryScreen";
-import UploadScreen from "./screens/UploadScreen";
 import MusicDetailScreen from "./screens/MusicDetailScreen";
 import AlbumDetailScreen from "./screens/AlbumDetailScreen";
 import CreateAlbumScreen from "./screens/CreateAlbumScreen";
 import ManageAlbumsScreen from "./screens/ManageAlbumsScreen";
 import ManageMusicScreen from "./screens/ManageMusicScreen";
+
+import ProfileScreen from "./screens/ProfileScreen";
+
 import ChatScreen from "./screens/ChatScreen";
 
-// === COMPONENTS ===
-import BottomTabBar from "./components/BottomTabBar";
+
+// auth screens mới
+import AuthLoginScreen from "./screens/AuthLoginScreen";
+import AuthSignupScreen from "./screens/AuthSignupScreen";
+import RegisterArtistScreen from "./screens/RegisterArtistScreen"; 
+
+// components
+import BottomTabBar, { TabScreen } from "./components/BottomTabBar";
 import MiniPlayer from "./components/MiniPlayer";
+
+
+// store
+import { useUserStore } from "./store/useUserStore";
 
 // === TYPES ===
 type TabScreen = "home" | "search" | "library" | "upload" | "chat";
+
 type Screen =
   | TabScreen
   | "detail"
   | "album"
   | "createAlbum"
   | "manageAlbums"
-  | "manageMusic";
+  | "manageMusic"
+  | "authLogin"
+  | "authSignup"
+  | "registerArtist";
 
 /**
  * Song shape expected by the MusicDetailScreen you provided.
@@ -43,6 +61,9 @@ export interface Song {
   imageUrl?: string;
   duration?: number;
 }
+interface Album {
+  id: string;
+
 
 /**
  * MiniPlayer's smaller track shape (if your MiniPlayer expects
@@ -64,13 +85,34 @@ export default function App() {
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
   const [currentAlbum, setCurrentAlbum] = useState<any | null>(null);
 
+  const user = useUserStore((s) => s.user);
+  const checkAuth = useUserStore((s) => s.checkAuth);
+
   useEffect(() => {
+    (async () => {
+      await checkAuth(); // gọi profile nếu có token
+      setIsLoading(false); // không chờ API vô hạn
+    })();
     const t = setTimeout(() => setIsLoading(false), 1000);
     return () => clearTimeout(t);
   }, []);
 
   if (isLoading) return <SplashScreen />;
 
+
+  const isTabScreen = (s: Screen): s is TabScreen =>
+    ["home", "search", "library", "upload", "chat","profile"].includes(screen);;
+
+  const handlePlay = (track: Track) => {
+    setCurrentTrack(track);
+    setCurrentScreen("detail");
+  };
+  const openDetail = () => currentTrack && setCurrentScreen("detail");
+  const openAlbum = (a: Album) => {
+    setCurrentAlbum(a);
+    setCurrentScreen("album");
+  };
+  const goBack = () => setCurrentScreen("home");
   // === normalize incoming "track-like" objects into Song ===
   const normalizeToSong = (maybe: any): Song | null => {
     if (!maybe) return null;
@@ -119,18 +161,15 @@ export default function App() {
     setCurrentScreen("album");
   };
 
-  const goBack = () => setCurrentScreen("home");
 
-  const isTabScreen = (screen: Screen): screen is TabScreen =>
-    ["home", "search", "library", "upload", "chat"].includes(screen);
+
 
   const mainPaddingBottom = currentSong ? 80 : 70;
 
   return (
-    <SafeAreaViewRN style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <View style={[styles.main, { paddingBottom: mainPaddingBottom }]}>
-          {/* HOME */}
           {currentScreen === "home" && (
             <HomeScreen
               onPlay={handlePlay}
@@ -140,31 +179,96 @@ export default function App() {
             />
           )}
 
-          {/* SEARCH */}
           {currentScreen === "search" && (
             <SearchScreen onBack={goBack} onPlay={handlePlay} />
           )}
 
-          {/* LIBRARY */}
           {currentScreen === "library" && (
             <LibraryScreen
               onBack={goBack}
               onPlay={handlePlay}
-              onCreateAlbum={() => setCurrentScreen("createAlbum")}
-              onManageAlbums={() => setCurrentScreen("manageAlbums")}
-              onManageMusic={() => setCurrentScreen("manageMusic")}
+              onCreateAlbum={() =>
+                user
+                  ? setCurrentScreen("createAlbum")
+                  : setCurrentScreen("authLogin")
+              }
+              onManageAlbums={() =>
+                user
+                  ? setCurrentScreen("manageAlbums")
+                  : setCurrentScreen("authLogin")
+              }
+              onManageMusic={() =>
+                user
+                  ? setCurrentScreen("manageMusic")
+                  : setCurrentScreen("authLogin")
+              }
             />
           )}
 
-          {/* UPLOAD */}
-          {currentScreen === "upload" && <UploadScreen onBack={goBack} />}
+          {/* PROFILE tab: nếu chưa login -> authLogin; đã login -> ProfileScreen */}
+          {currentScreen === "profile" &&
+            (user ? (
+              <ProfileScreen
+                onBack={goBack}
+                onNavigate={(route) => {
+                  switch (route) {
+                    case "registerArtist":
+                      // ✅ mở lại: chuyển sang màn đăng ký artist
+                      setCurrentScreen("registerArtist");
+                      break;
+                    case "logout":
+                      useUserStore.getState().logout();
+                      setCurrentScreen("home");
+                      break;
+                    default:
+                      setCurrentScreen("home");
+                  }
+                }}
+              />
+            ) : (
+              <AuthLoginScreen
+                onBack={goBack}
+                onSignup={() => setCurrentScreen("authSignup")}
+                onSuccess={() => setCurrentScreen("profile")}
+              />
+            ))}
 
-          {/* MUSIC DETAIL — pass canonical Song */}
-          {currentScreen === "detail" && currentSong && (
-            <MusicDetailScreen track={currentSong} onBack={goBack} />
+          {currentScreen === "authLogin" && (
+            <AuthLoginScreen
+              onBack={goBack}
+              onSignup={() => setCurrentScreen("authSignup")}
+              onSuccess={() => setCurrentScreen("profile")}
+            />
           )}
 
-          {/* CREATE ALBUM */}
+            {/* REGISTER ARTIST (nếu có) */}
+          {currentScreen === "registerArtist" && (
+            <RegisterArtistScreen
+              onBack={() => setCurrentScreen("registerArtist")}
+              onSubscribe={(plan) => {
+                Alert.alert("Thành công", `Đăng ký ${plan.title} thành công!`);
+                setCurrentScreen("registerArtist");
+              }}
+            />
+          )}
+
+
+          {currentScreen === "authSignup" && (
+            <AuthSignupScreen
+              onBack={() => setCurrentScreen("authLogin")}
+              onLogin={() => setCurrentScreen("authLogin")}
+              onSuccess={() => setCurrentScreen("profile")}
+            />
+          )}
+
+
+      
+
+          {currentScreen === "detail" && currentSong && (
+            <MusicDetailScreen track={currentSong} onBack={goBack} />
+
+          )}
+
           {currentScreen === "createAlbum" && (
             <CreateAlbumScreen
               onBack={() => setCurrentScreen("library")}
@@ -172,12 +276,10 @@ export default function App() {
             />
           )}
 
-          {/* ALBUM DETAIL */}
           {currentScreen === "album" && currentAlbum && (
             <AlbumDetailScreen onBack={goBack} onPlayTrack={handlePlay} />
           )}
 
-          {/* MANAGE ALBUMS */}
           {currentScreen === "manageAlbums" && (
             <ManageAlbumsScreen
               onBack={() => setCurrentScreen("library")}
@@ -186,11 +288,10 @@ export default function App() {
             />
           )}
 
-          {/* MANAGE MUSIC */}
           {currentScreen === "manageMusic" && (
             <ManageMusicScreen
               onBack={() => setCurrentScreen("library")}
-              onUpload={() => setCurrentScreen("upload")}
+              onUpload={() => setCurrentScreen("profile")}
             />
           )}
 
@@ -199,6 +300,10 @@ export default function App() {
             <ChatScreen onBack={() => setCurrentScreen("home")} />
           )}
         </View>
+
+
+        {currentTrack && (
+          <MiniPlayer track={currentTrack} onPress={openDetail} />
 
         {/* MINI PLAYER */}
         {currentSong && (
@@ -211,17 +316,24 @@ export default function App() {
             }}
             onPress={openDetail}
           />
+
         )}
 
-        {/* BOTTOM TAB BAR */}
         {isTabScreen(currentScreen) && (
           <BottomTabBar
-            currentScreen={currentScreen}
-            onNavigate={(screen) => setCurrentScreen(screen)}
+            currentScreen={currentScreen as TabScreen}
+            onNavigate={(tab) => {
+              if (tab === "profile") {
+                setCurrentScreen("profile"); 
+                return;
+              }
+              setCurrentScreen(tab);
+            }}
+
           />
         )}
       </View>
-    </SafeAreaViewRN>
+    </SafeAreaView>
   );
 }
 
