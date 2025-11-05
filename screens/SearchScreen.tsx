@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   View,
   Text,
@@ -10,8 +10,9 @@ import {
   Image,
   ScrollView,
   Dimensions,
+  ActivityIndicator,
 } from "react-native"
-import { Search, Play } from "lucide-react-native"
+import { Search, Play, ChevronLeft } from "lucide-react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 const { width } = Dimensions.get("window")
@@ -20,97 +21,76 @@ const ALBUM_SIZE = (width - 48 - 18) / 4 // 4 cột, gap 6 → 18px
 // ---------------------------------------------------------------------
 // Types (được dùng chung với App.tsx)
 interface Track {
-  id: string
+  _id: string
+  title: string
+  artist: string
+  imageUrl?: string
+  audioUrl?: string
+  duration?: number
+}
+
+interface Album {
+  _id: string
   name: string
   artist: string
-  image: any
-  duration: number
+  imageUrl?: string
+  tracks?: number
 }
 
 interface Props {
   onBack: () => void
-  onPlay: (track: Track) => void   // ← thêm prop
+  onPlay: (track: Track) => void
 }
 // ---------------------------------------------------------------------
-
-const mockSongs = [
-  {
-    id: 1,
-    name: "Urban Jungle",
-    artist: "City Lights",
-    album: "Night Vibes",
-    duration: "3:24",
-    image: require("../assets/i1.jpg"),
-  },
-  {
-    id: 2,
-    name: "Neon Dreams",
-    artist: "Electric Soul",
-    album: "Synthwave",
-    duration: "4:12",
-    image: require("../assets/i1.jpg"),
-  },
-  {
-    id: 3,
-    name: "Midnight Drive",
-    artist: "Night Runners",
-    album: "Highway",
-    duration: "3:45",
-    image: require("../assets/i1.jpg"),
-  },
-]
-
-const mockAlbums = [
-  {
-    id: 1,
-    name: "Gymv2",
-    artist: "Võ Anh Hoàng",
-    tracks: 36,
-    image: require("../assets/i1.jpg"),
-  },
-  {
-    id: 2,
-    name: "Urban Nights",
-    artist: "Various Artists",
-    tracks: 24,
-    image: require("../assets/i1.jpg"),
-  },
-  {
-    id: 3,
-    name: "Neon Lights",
-    artist: "Night Runners",
-    tracks: 12,
-    image: require("../assets/i1.jpg"),
-  },
-  {
-    id: 4,
-    name: "Summer Vibes",
-    artist: "Coastal Kids",
-    tracks: 18,
-    image: require("../assets/i1.jpg"),
-  },
-]
 
 export default function SearchScreen({ onBack, onPlay }: Props) {
   const [searchQuery, setSearchQuery] = useState("")
   const [activeTab, setActiveTab] = useState<"songs" | "albums">("songs")
+  const [songs, setSongs] = useState<Track[]>([])
+  const [albums, setAlbums] = useState<Album[]>([])
+  const [loading, setLoading] = useState(true)
 
-  // chuyển đổi duration string → seconds
-  const parseDuration = (str: string): number => {
-    const [m, s] = str.split(":").map(Number)
-    return m * 60 + s
-  }
+  // 🟢 Fetch API dữ liệu thật
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true)
+        const [songRes, albumRes] = await Promise.all([
+          fetch("http://192.168.0.101:5000/api/all"),
+          fetch("http://192.168.0.101:5000/api/albums"),
+        ])
 
-  const handlePlaySong = (song: typeof mockSongs[0]) => {
-    const track: Track = {
-      id: song.id.toString(),
-      name: song.name,
-      artist: song.artist,
-      image: song.image,
-      duration: parseDuration(song.duration),
+        const songData = await songRes.json()
+        const albumData = await albumRes.json()
+
+        console.log("🎵 Songs:", songData)
+        console.log("💿 Albums:", albumData)
+
+        setSongs(Array.isArray(songData) ? songData : songData.songs || [])
+        setAlbums(Array.isArray(albumData) ? albumData : albumData.albums || [])
+      } catch (err) {
+        console.error("[Search fetch error]", err)
+      } finally {
+        setLoading(false)
+      }
     }
-    onPlay(track)
-  }
+
+    fetchData()
+  }, [])
+
+  const filteredSongs = songs.filter(
+    (s) =>
+      s.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      s.artist?.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  const filteredAlbums = albums.filter(
+    (a) =>
+      a.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      a.artist?.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  const handlePlaySong = (song: Track) => onPlay(song)
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -118,9 +98,9 @@ export default function SearchScreen({ onBack, onPlay }: Props) {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={onBack} style={styles.backButton}>
-            <Text style={styles.backText}>Back</Text>
+            <ChevronLeft color="#60a5fa" size={24} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Search</Text>
+          <Text style={styles.headerTitle}>Tìm kiếm</Text>
           <View style={{ width: 40 }} />
         </View>
 
@@ -129,7 +109,7 @@ export default function SearchScreen({ onBack, onPlay }: Props) {
           <Search color="#94a3b8" size={20} style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Tìm kiếm bài hát, album, nghệ sĩ..."
+            placeholder="Tìm bài hát, album, nghệ sĩ..."
             placeholderTextColor="#64748b"
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -143,7 +123,12 @@ export default function SearchScreen({ onBack, onPlay }: Props) {
             style={[styles.tab, activeTab === "songs" && styles.tabActive]}
             onPress={() => setActiveTab("songs")}
           >
-            <Text style={[styles.tabText, activeTab === "songs" && styles.tabTextActive]}>
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === "songs" && styles.tabTextActive,
+              ]}
+            >
               Bài hát
             </Text>
           </TouchableOpacity>
@@ -151,60 +136,103 @@ export default function SearchScreen({ onBack, onPlay }: Props) {
             style={[styles.tab, activeTab === "albums" && styles.tabActive]}
             onPress={() => setActiveTab("albums")}
           >
-            <Text style={[styles.tabText, activeTab === "albums" && styles.tabTextActive]}>
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === "albums" && styles.tabTextActive,
+              ]}
+            >
               Album
             </Text>
           </TouchableOpacity>
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          {activeTab === "songs" ? (
+        {/* Content */}
+        <ScrollView
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
+          {loading ? (
+            <ActivityIndicator
+              color="#60a5fa"
+              size="large"
+              style={{ marginTop: 40 }}
+            />
+          ) : activeTab === "songs" ? (
             <View style={styles.songList}>
-              {mockSongs.map((song) => (
-                <TouchableOpacity
-                  key={song.id}
-                  style={styles.songItem}
-                  activeOpacity={0.7}
-                  onPress={() => handlePlaySong(song)}  
-                >
-                  <View style={styles.songImageContainer}>
-                    <Image source={song.image} style={styles.songImage} />
-                    <View style={styles.playOverlay}>
-                      <Play color="#fff" fill="#fff" size={20} />
+              {filteredSongs.length === 0 ? (
+                <Text style={styles.emptyText}>Không có bài hát nào</Text>
+              ) : (
+                filteredSongs.map((song) => (
+                  <TouchableOpacity
+                    key={song._id}
+                    style={styles.songItem}
+                    activeOpacity={0.7}
+                    onPress={() => handlePlaySong(song)}
+                  >
+                    <View style={styles.songImageContainer}>
+                      <Image
+                        source={{
+                          uri:
+                            song.imageUrl ||
+                            "https://cdn-icons-png.flaticon.com/512/1384/1384060.png",
+                        }}
+                        style={styles.songImage}
+                      />
+                      <View style={styles.playOverlay}>
+                        <Play color="#fff" fill="#fff" size={20} />
+                      </View>
                     </View>
-                  </View>
-                  <View style={styles.songInfo}>
-                    <Text style={styles.songName} numberOfLines={1}>
-                      {song.name}
+                    <View style={styles.songInfo}>
+                      <Text style={styles.songName} numberOfLines={1}>
+                        {song.title || "Không tên"}
+                      </Text>
+                      <Text style={styles.songArtist} numberOfLines={1}>
+                        {song.artist || "Không rõ nghệ sĩ"}
+                      </Text>
+                    </View>
+                    <Text style={styles.songDuration}>
+                      {song.duration
+                        ? Math.floor(song.duration / 60) +
+                          ":" +
+                          (song.duration % 60).toString().padStart(2, "0")
+                        : "--:--"}
                     </Text>
-                    <Text style={styles.songArtist} numberOfLines={1}>
-                      {song.artist}
-                    </Text>
-                  </View>
-                  <Text style={styles.songAlbum}>{song.album}</Text>
-                  <Text style={styles.songDuration}>{song.duration}</Text>
-                </TouchableOpacity>
-              ))}
+                  </TouchableOpacity>
+                ))
+              )}
             </View>
           ) : (
             <View style={styles.albumGrid}>
-              {mockAlbums.map((album) => (
-                <TouchableOpacity key={album.id} style={styles.albumCard} activeOpacity={0.8}>
-                  <View style={styles.albumImageContainer}>
-                    <Image source={album.image} style={styles.albumImage} />
-                    <View style={styles.albumPlayButton}>
-                      <Play color="#000" fill="#000" size={20} style={{ marginLeft: 2 }} />
-                    </View>
-                  </View>
-                  <Text style={styles.albumName} numberOfLines={1}>
-                    {album.name}
-                  </Text>
-                  <Text style={styles.albumArtist} numberOfLines={1}>
-                    {album.artist}
-                  </Text>
-                  <Text style={styles.albumTracks}>{album.tracks} bài hát</Text>
-                </TouchableOpacity>
-              ))}
+              {filteredAlbums.length === 0 ? (
+                <Text style={styles.emptyText}>Không có album nào</Text>
+              ) : (
+                filteredAlbums.map((album) => (
+                  <TouchableOpacity
+                    key={album._id}
+                    style={styles.albumCard}
+                    activeOpacity={0.8}
+                  >
+                    <Image
+                      source={{
+                        uri:
+                          album.imageUrl ||
+                          "https://cdn-icons-png.flaticon.com/512/169/169367.png",
+                      }}
+                      style={styles.albumImage}
+                    />
+                    <Text style={styles.albumName} numberOfLines={1}>
+                      {album.name}
+                    </Text>
+                    <Text style={styles.albumArtist} numberOfLines={1}>
+                      {album.artist}
+                    </Text>
+                    <Text style={styles.albumTracks}>
+                      {album.tracks || 0} bài hát
+                    </Text>
+                  </TouchableOpacity>
+                ))
+              )}
             </View>
           )}
         </ScrollView>
@@ -226,8 +254,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#1e293b",
   },
   backButton: { padding: 4 },
-  backText: { fontSize: 14, color: "#60a5fa", fontWeight: "600", fontFamily: "Geist" },
-  headerTitle: { fontSize: 18, fontWeight: "bold", color: "#fff", fontFamily: "DancingScript_700Bold" },
+  headerTitle: { fontSize: 18, fontWeight: "bold", color: "#fff" },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -240,13 +267,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   searchIcon: { marginRight: 8 },
-  searchInput: {
-    flex: 1,
-    height: 48,
-    color: "#fff",
-    fontSize: 15,
-    fontFamily: "Geist",
-  },
+  searchInput: { flex: 1, height: 48, color: "#fff", fontSize: 15 },
   tabContainer: {
     flexDirection: "row",
     borderBottomWidth: 1,
@@ -260,7 +281,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "transparent",
   },
   tabActive: { borderBottomColor: "#60a5fa" },
-  tabText: { fontSize: 15, color: "#94a3b8", fontFamily: "Geist" },
+  tabText: { fontSize: 15, color: "#94a3b8" },
   tabTextActive: { color: "#fff", fontWeight: "600" },
   content: { flex: 1, paddingHorizontal: 16, paddingTop: 16 },
   songList: { gap: 8 },
@@ -282,28 +303,19 @@ const styles = StyleSheet.create({
     opacity: 0,
   },
   songInfo: { flex: 1 },
-  songName: { fontSize: 14, fontWeight: "600", color: "#fff", fontFamily: "Geist" },
-  songArtist: { fontSize: 12, color: "#94a3b8", fontFamily: "Geist" },
-  songAlbum: { fontSize: 12, color: "#64748b", fontFamily: "Geist", marginRight: 8 },
-  songDuration: { fontSize: 12, color: "#64748b", fontFamily: "Geist" },
-  albumGrid: { flexDirection: "row", flexWrap: "wrap", gap: 16, justifyContent: "space-between" },
-  albumCard: { width: ALBUM_SIZE },
-  albumImageContainer: { position: "relative", marginBottom: 12 },
-  albumImage: { width: "100%", height: ALBUM_SIZE, borderRadius: 12 },
-  albumPlayButton: {
-    position: "absolute",
-    bottom: 8,
-    right: 8,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#60a5fa",
-    justifyContent: "center",
-    alignItems: "center",
-    opacity: 0,
-    transform: [{ translateY: 8 }],
+  songName: { fontSize: 14, fontWeight: "600", color: "#fff" },
+  songArtist: { fontSize: 12, color: "#94a3b8" },
+  songDuration: { fontSize: 12, color: "#64748b" },
+  albumGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 16,
+    justifyContent: "space-between",
   },
-  albumName: { fontSize: 14, fontWeight: "600", color: "#fff", fontFamily: "Geist" },
-  albumArtist: { fontSize: 12, color: "#94a3b8", fontFamily: "Geist" },
-  albumTracks: { fontSize: 11, color: "#64748b", marginTop: 4, fontFamily: "Geist" },
+  albumCard: { width: ALBUM_SIZE },
+  albumImage: { width: "100%", height: ALBUM_SIZE, borderRadius: 12 },
+  albumName: { fontSize: 14, fontWeight: "600", color: "#fff", marginTop: 8 },
+  albumArtist: { fontSize: 12, color: "#94a3b8" },
+  albumTracks: { fontSize: 11, color: "#64748b", marginTop: 4 },
+  emptyText: { color: "#94a3b8", textAlign: "center", marginTop: 40 },
 })
