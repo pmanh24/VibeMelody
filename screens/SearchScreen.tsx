@@ -56,8 +56,8 @@ export default function SearchScreen({ onBack, onPlay }: Props) {
       try {
         setLoading(true)
         const [songRes, albumRes] = await Promise.all([
-          fetch("http://10.33.64.38:5000/api/all"),
-          fetch("http://10.33.64.38:5000/api/albums"),
+          fetch("http://192.168.0.103:5000/api/all"),
+          fetch("http://192.168.0.103:5000/api/albums"),
         ])
 
         const songData = await songRes.json()

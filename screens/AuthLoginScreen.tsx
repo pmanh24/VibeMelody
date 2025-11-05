@@ -1,57 +1,130 @@
-// screens/AuthLoginScreen.tsx
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  Alert,
+} from "react-native";
 import { useUserStore } from "../store/useUserStore";
 
-type Props = {
-  onBack: () => void;
-  onSignup: () => void;
-  onSuccess: () => void;
-};
-
-export default function AuthLoginScreen({ onBack, onSignup, onSuccess }: Props) {
+export default function AuthLoginScreen({ onBack, onSignup, onSuccess }: any) {
+  const { login, loading, user } = useUserStore();
   const [email, setEmail] = useState("");
-  const [pw, setPw] = useState("");
-  const loading = useUserStore((s) => s.loading);
-  const login = useUserStore((s) => s.login);
+  const [password, setPassword] = useState("");
 
   const handleLogin = async () => {
-    await login(email.trim(), pw);
-    const user = useUserStore.getState().user;
-    if (user) onSuccess();
+    if (!email || !password) {
+      Alert.alert("Thông báo", "Vui lòng nhập email và mật khẩu");
+      return;
+    }
+
+    await login(email, password);
+    if (useUserStore.getState().user) {
+      onSuccess?.();
+    }
   };
 
   return (
-    <View style={styles.wrap}>
+    <View style={styles.container}>
       <Text style={styles.title}>Đăng nhập</Text>
-      <TextInput style={styles.inp} placeholder="Email" placeholderTextColor="#64748b" value={email} onChangeText={setEmail} />
-      <TextInput style={styles.inp} placeholder="Password" placeholderTextColor="#64748b" value={pw} onChangeText={setPw} secureTextEntry />
-      <TouchableOpacity style={styles.btn} onPress={handleLogin} disabled={loading}>
-        {loading ? <ActivityIndicator /> : <Text style={styles.btnTxt}>Tiếp tục</Text>}
+
+      <TextInput
+        placeholder="Email"
+        placeholderTextColor="#aaa"
+        style={styles.input}
+        value={email}
+        onChangeText={setEmail}
+        keyboardType="email-address"
+      />
+
+      <TextInput
+        placeholder="Mật khẩu"
+        placeholderTextColor="#aaa"
+        style={styles.input}
+        value={password}
+        onChangeText={setPassword}
+        secureTextEntry
+      />
+
+      <TouchableOpacity
+        style={[styles.button, loading && styles.disabledButton]}
+        onPress={handleLogin}
+        disabled={loading}
+      >
+        {loading ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.buttonText}>Đăng nhập</Text>
+        )}
       </TouchableOpacity>
-      <TouchableOpacity style={{ marginTop: 12 }} onPress={onSignup}>
-        <Text style={{ color: "#60a5fa" }}>Tạo tài khoản mới</Text>
+
+      <TouchableOpacity onPress={onSignup}>
+        <Text style={styles.linkText}>
+          Chưa có tài khoản? <Text style={styles.highlight}>Đăng ký ngay</Text>
+        </Text>
       </TouchableOpacity>
-      <TouchableOpacity style={{ marginTop: 12 }} onPress={onBack}>
-        <Text style={{ color: "#94a3b8" }}>Quay lại</Text>
+
+      <TouchableOpacity onPress={onBack}>
+        <Text style={styles.backText}>← Quay lại</Text>
       </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: "#0f172a", padding: 16, justifyContent: "center" },
-  title: { color: "#fff", fontSize: 22, fontWeight: "700", marginBottom: 16 },
-  inp: {
-    backgroundColor: "#111827",
-    color: "#fff",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: "#1f2937",
+  container: {
+    flex: 1,
+    backgroundColor: "#0f172a",
+    paddingHorizontal: 24,
+    justifyContent: "center",
   },
-  btn: { backgroundColor: "#22c55e", paddingVertical: 14, borderRadius: 12, alignItems: "center", marginTop: 8 },
-  btnTxt: { color: "#052e16", fontWeight: "800" },
+  title: {
+    color: "white",
+    fontSize: 32,
+    fontWeight: "bold",
+    marginBottom: 36,
+    textAlign: "center",
+  },
+  input: {
+    backgroundColor: "#1e293b",
+    color: "white",
+    fontSize: 16,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  button: {
+    backgroundColor: "#3b82f6",
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginBottom: 24,
+  },
+  disabledButton: {
+    backgroundColor: "#64748b",
+  },
+  buttonText: {
+    color: "white",
+    fontSize: 18,
+    textAlign: "center",
+    fontWeight: "600",
+  },
+  linkText: {
+    color: "#94a3b8",
+    fontSize: 14,
+    textAlign: "center",
+  },
+  highlight: {
+    color: "#3b82f6",
+    fontWeight: "600",
+  },
+  backText: {
+    color: "#38bdf8",
+    textAlign: "center",
+    marginTop: 24,
+    fontSize: 16,
+  },
 });

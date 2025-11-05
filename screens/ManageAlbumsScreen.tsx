@@ -23,7 +23,7 @@ import {
 } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const API_BASE = "http://10.33.64.38:5000/api/albums"; // 🔧 Thay IP thật khi test trên Expo
+const API_BASE = "http://192.168.0.103:5000/api/albums"; // 🔧 Thay IP thật khi test trên Expo
 
 interface Album {
   _id: string;

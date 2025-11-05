@@ -1,35 +1,34 @@
+import { View, TouchableOpacity, Text, StyleSheet } from "react-native";
+import { Home, Search, ListMusic, Upload, MessageCircle, CircleUser } from "lucide-react-native";
 
-
-import { View, TouchableOpacity, Text, StyleSheet } from "react-native"
-import { Home, Search, ListMusic, Upload, MessageCircle, CircleUser } from "lucide-react-native"
-
-// ĐÃ MỞ RỘNG: 5 TAB (bao gồm chat)
-export type TabScreen = "home" | "search" | "library" | "upload" | "chat"| "profile";
-
+// 6 tab có thể hiển thị
+export type TabScreen = "home" | "search" | "library" | "upload" | "chat" | "profile";
 
 interface Props {
   currentScreen: TabScreen;
+  availableTabs: TabScreen[]; // ✅ thêm prop mới
   onNavigate: (screen: TabScreen) => void;
 }
 
-
-const tabs = [
+// ✅ map đầy đủ thông tin tab
+const allTabs = [
   { name: "Home", icon: Home, screen: "home" as TabScreen },
   { name: "Search", icon: Search, screen: "search" as TabScreen },
   { name: "Library", icon: ListMusic, screen: "library" as TabScreen },
   { name: "Upload", icon: Upload, screen: "upload" as TabScreen },
   { name: "Chat", icon: MessageCircle, screen: "chat" as TabScreen },
-         { name: "Profile", screen: "profile"as TabScreen, icon: CircleUser   },// ĐÃ THÊM
-]
+  { name: "Profile", icon: CircleUser, screen: "profile" as TabScreen },
+];
 
+export default function BottomTabBar({ currentScreen, availableTabs, onNavigate }: Props) {
+  // ✅ chỉ render các tab nằm trong danh sách cho phép
+  const visibleTabs = allTabs.filter((tab) => availableTabs.includes(tab.screen));
 
-export default function BottomTabBar({ currentScreen, onNavigate }: Props) {
   return (
     <View style={styles.container}>
-
-      {tabs.map((tab) => {
-        const isActive = currentScreen === tab.screen
-        const Icon = tab.icon
+      {visibleTabs.map((tab) => {
+        const isActive = currentScreen === tab.screen;
+        const Icon = tab.icon;
 
         return (
           <TouchableOpacity
@@ -60,7 +59,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     borderTopWidth: 1,
     borderTopColor: "#334155",
-    paddingBottom: 0,
   },
   tab: {
     flex: 1,
@@ -76,6 +74,5 @@ const styles = StyleSheet.create({
   labelActive: {
     color: "#60a5fa",
     fontWeight: "600",
-  }
+  },
 });
-

@@ -16,8 +16,9 @@ import {
 import { ArrowLeft, Plus, Save, Upload, X } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
-
+import {link} from '../lib/api'
 const { height } = Dimensions.get("window");
+
 
 interface Track {
   id: string;
@@ -46,11 +47,13 @@ export default function CreateAlbumScreen({ onBack, onSave }: Props) {
   const [loading, setLoading] = useState(false);
   const [songsLoaded, setSongsLoaded] = useState(false);
 
+  console.log(link);
+  
   // === FETCH SONGS ===
   useEffect(() => {
     const fetchSongs = async () => {
       try {
-        const res = await fetch("http://192.168.0.101:5000/api/all");
+        const res = await fetch(`${link}/all`);
         if (!res.ok) throw new Error(`API lỗi: ${res.status}`);
         const data = await res.json();
 
@@ -172,7 +175,7 @@ export default function CreateAlbumScreen({ onBack, onSave }: Props) {
     }
 
     try {
-      const res = await fetch("http://10.33.64.38:5000/api/albums", {
+      const res = await fetch(`${link}/albums`, {
         method: "POST",
         body: formData,
       });

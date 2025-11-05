@@ -1,8 +1,25 @@
 // ProfileScreen.tsx
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ArrowLeft, ChevronRight, User, Mic2, Settings as SettingsIcon, Lock, LogOut, BadgePlus } from "lucide-react-native";
+import {
+  ArrowLeft,
+  ChevronRight,
+  User,
+  Mic2,
+  Settings as SettingsIcon,
+  Lock,
+  LogOut,
+  BadgePlus,
+} from "lucide-react-native";
+import { useUserStore } from "../store/useUserStore";
 
 type Props = {
   onBack: () => void;
@@ -16,13 +33,21 @@ export default function ProfileScreen({ onBack, onNavigate }: Props) {
     { label: "Artist Profile", onPress: () => onNavigate("artistProfile") },
     { label: "Settings", onPress: () => onNavigate("settings") },
     { label: "Change Password", onPress: () => onNavigate("changePassword") },
-    { label: "Register as Artist", onPress: () => onNavigate("registerArtist") },
+    {
+      label: "Register as Artist",
+      onPress: () => onNavigate("registerArtist"),
+    },
   ];
+  const {logout} = useUserStore();
 
   const onLogout = () => {
     Alert.alert("Xác nhận", "Bạn muốn đăng xuất?", [
       { text: "Huỷ", style: "cancel" },
-      { text: "Đăng xuất", style: "destructive", onPress: () => onNavigate("login") },
+      {
+        text: "Đăng xuất",
+        style: "destructive",
+        onPress: () => {logout() ,onNavigate("authLogin")},
+      },
     ]);
   };
 
@@ -39,7 +64,12 @@ export default function ProfileScreen({ onBack, onNavigate }: Props) {
 
         <View style={styles.menuBlock}>
           {items.map((it) => (
-            <TouchableOpacity key={it.label} onPress={it.onPress} style={styles.menuItem} activeOpacity={0.8}>
+            <TouchableOpacity
+              key={it.label}
+              onPress={it.onPress}
+              style={styles.menuItem}
+              activeOpacity={0.8}
+            >
               <View style={styles.menuLeft}>
                 <View style={styles.iconWrap}>
                   {/* đổi icon theo label nếu muốn */}
@@ -52,7 +82,11 @@ export default function ProfileScreen({ onBack, onNavigate }: Props) {
           ))}
         </View>
 
-        <TouchableOpacity style={styles.logoutItem} onPress={onLogout} activeOpacity={0.9}>
+        <TouchableOpacity
+          style={styles.logoutItem}
+          onPress={onLogout}
+          activeOpacity={0.9}
+        >
           <View style={styles.menuLeft}>
             <View style={[styles.iconWrap, { backgroundColor: "#2a0e12" }]}>
               <LogOut color="#ef4444" size={18} />
@@ -69,13 +103,55 @@ export default function ProfileScreen({ onBack, onNavigate }: Props) {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "#0f172a" },
   container: { flex: 1 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#1e293b" },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#1e293b",
+  },
   backButton: { padding: 4 },
-  title: { fontSize: 20, fontWeight: "bold", color: "#fff", fontFamily: "DancingScript_700Bold" },
+  title: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#fff",
+    fontFamily: "DancingScript_700Bold",
+  },
   menuBlock: { marginTop: 16, marginHorizontal: 12 },
-  menuItem: { backgroundColor: "#111827", paddingVertical: 14, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: "#1f2937", flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderRadius: 8, marginBottom: 8 },
+  menuItem: {
+    backgroundColor: "#111827",
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#1f2937",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderRadius: 8,
+    marginBottom: 8,
+  },
   menuLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
-  iconWrap: { width: 28, height: 28, borderRadius: 8, backgroundColor: "#0b1220", alignItems: "center", justifyContent: "center" },
+  iconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: "#0b1220",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   menuText: { color: "#e5e7eb", fontSize: 15, fontWeight: "600" },
-  logoutItem: { margin: 12, backgroundColor: "#1b0f12", paddingVertical: 14, paddingHorizontal: 14, borderRadius: 12, flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderWidth: 1, borderColor: "#3b0f14" },
+  logoutItem: {
+    margin: 12,
+    backgroundColor: "#1b0f12",
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#3b0f14",
+  },
 });

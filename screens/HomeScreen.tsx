@@ -24,6 +24,7 @@ import {
 } from "lucide-react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import axios from "axios"
+import {api} from '../lib/api'
 
 const { width } = Dimensions.get("window")
 const CARD_WIDTH = (width - 48 - 18) / 4
@@ -79,7 +80,7 @@ export default function HomeScreen({ onPlay, onSearch, onOpenAlbum, onOpenChat }
     const fetchSongs = async () => {
       try {
         setLoading(true)
-        const res = await axios.get("http://10.33.64.38:5000/api/all")
+        const res = await api.get(`/all`)
         setSongs(res.data || [])
       } catch (err: any) {
         console.error("[Fetch songs error]", err)
