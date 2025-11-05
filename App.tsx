@@ -16,6 +16,7 @@ import AlbumDetailScreen from "./screens/AlbumDetailScreen";
 import CreateAlbumScreen from "./screens/CreateAlbumScreen";
 import ManageAlbumsScreen from "./screens/ManageAlbumsScreen";
 import ManageMusicScreen from "./screens/ManageMusicScreen";
+import UploadScreen from "./screens/UploadScreen";
 
 import ProfileScreen from "./screens/ProfileScreen";
 
@@ -35,8 +36,6 @@ import MiniPlayer from "./components/MiniPlayer";
 // store
 import { useUserStore } from "./store/useUserStore";
 
-// === TYPES ===
-type TabScreen = "home" | "search" | "library" | "upload" | "chat";
 
 type Screen =
   | TabScreen
@@ -63,7 +62,7 @@ export interface Song {
 }
 interface Album {
   id: string;
-
+}
 
 /**
  * MiniPlayer's smaller track shape (if your MiniPlayer expects
@@ -101,17 +100,9 @@ export default function App() {
 
 
   const isTabScreen = (s: Screen): s is TabScreen =>
-    ["home", "search", "library", "upload", "chat","profile"].includes(screen);;
+    ["home", "search", "library", "upload", "chat","profile"].includes(s);;
 
-  const handlePlay = (track: Track) => {
-    setCurrentTrack(track);
-    setCurrentScreen("detail");
-  };
-  const openDetail = () => currentTrack && setCurrentScreen("detail");
-  const openAlbum = (a: Album) => {
-    setCurrentAlbum(a);
-    setCurrentScreen("album");
-  };
+  
   const goBack = () => setCurrentScreen("home");
   // === normalize incoming "track-like" objects into Song ===
   const normalizeToSong = (maybe: any): Song | null => {
@@ -261,8 +252,7 @@ export default function App() {
             />
           )}
 
-
-      
+       {currentScreen === "upload" && <UploadScreen onBack={goBack} />}
 
           {currentScreen === "detail" && currentSong && (
             <MusicDetailScreen track={currentSong} onBack={goBack} />
@@ -301,9 +291,9 @@ export default function App() {
           )}
         </View>
 
-
+{/* 
         {currentTrack && (
-          <MiniPlayer track={currentTrack} onPress={openDetail} />
+          <MiniPlayer track={currentTrack} onPress={openDetail} /> */}
 
         {/* MINI PLAYER */}
         {currentSong && (

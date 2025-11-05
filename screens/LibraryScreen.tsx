@@ -57,7 +57,7 @@ export default function LibraryScreen({
     const fetchTracks = async () => {
       try {
         setLoading(true);
-        const res = await fetch("http://192.168.0.101:5000/api/all"); // ⚠️ đổi URL nếu cần
+        const res = await fetch("http://10.33.64.38:5000/api/all"); // ⚠️ đổi URL nếu cần
         const data = await res.json();
         setTracks(data);
       } catch (err) {

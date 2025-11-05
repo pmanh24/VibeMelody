@@ -4,7 +4,7 @@ import { View, TouchableOpacity, Text, StyleSheet } from "react-native"
 import { Home, Search, ListMusic, Upload, MessageCircle, CircleUser } from "lucide-react-native"
 
 // ĐÃ MỞ RỘNG: 5 TAB (bao gồm chat)
-type TabScreen = "home" | "search" | "library" | "upload" | "chat"| "profile";
+export type TabScreen = "home" | "search" | "library" | "upload" | "chat"| "profile";
 
 
 interface Props {
@@ -19,7 +19,7 @@ const tabs = [
   { name: "Library", icon: ListMusic, screen: "library" as TabScreen },
   { name: "Upload", icon: Upload, screen: "upload" as TabScreen },
   { name: "Chat", icon: MessageCircle, screen: "chat" as TabScreen },
-         { name: "Profile", screen: "profile", icon: CircleUser },// ĐÃ THÊM
+         { name: "Profile", screen: "profile"as TabScreen, icon: CircleUser   },// ĐÃ THÊM
 ]
 
 
@@ -76,10 +76,6 @@ const styles = StyleSheet.create({
   labelActive: {
     color: "#60a5fa",
     fontWeight: "600",
-  },
-
-  tab: { flex: 1, justifyContent: "center", alignItems: "center", gap: 4 },
-  label: { fontSize: 10, color: "#94a3b8" },
-  labelActive: { color: "#60a5fa", fontWeight: "600" },
+  }
 });
-})
+

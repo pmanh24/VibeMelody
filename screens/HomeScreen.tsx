@@ -79,7 +79,7 @@ export default function HomeScreen({ onPlay, onSearch, onOpenAlbum, onOpenChat }
     const fetchSongs = async () => {
       try {
         setLoading(true)
-        const res = await axios.get("http://192.168.0.101:5000/api/all")
+        const res = await axios.get("http://10.33.64.38:5000/api/all")
         setSongs(res.data || [])
       } catch (err: any) {
         console.error("[Fetch songs error]", err)

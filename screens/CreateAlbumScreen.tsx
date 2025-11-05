@@ -172,7 +172,7 @@ export default function CreateAlbumScreen({ onBack, onSave }: Props) {
     }
 
     try {
-      const res = await fetch("http://192.168.0.101:5000/api/albums", {
+      const res = await fetch("http://10.33.64.38:5000/api/albums", {
         method: "POST",
         body: formData,
       });
