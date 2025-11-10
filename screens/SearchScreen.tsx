@@ -1,6 +1,4 @@
-"use client"
-
-import { useState, useEffect } from "react"
+import React, { useEffect, useState } from "react"
 import {
   View,
   Text,
@@ -9,65 +7,115 @@ import {
   TouchableOpacity,
   Image,
   ScrollView,
-  Dimensions,
   ActivityIndicator,
+  Dimensions,
 } from "react-native"
-import { Search, Play, ChevronLeft } from "lucide-react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
+import { Search, Play, ChevronLeft, BadgeCheck } from "lucide-react-native"
+import { api } from "../lib/api" // ✅ lấy API qua axios instance
 
 const { width } = Dimensions.get("window")
-const ALBUM_SIZE = (width - 48 - 18) / 4 // 4 cột, gap 6 → 18px
+const ALBUM_SIZE = (width - 48 - 18) / 4
 
-// ---------------------------------------------------------------------
-// Types (được dùng chung với App.tsx)
 interface Track {
   _id: string
   title: string
   artist: string
   imageUrl?: string
-  audioUrl?: string
   duration?: number
 }
 
 interface Album {
   _id: string
-  name: string
-  artist: string
+  title: string
+  artistName?: string
   imageUrl?: string
   tracks?: number
+}
+
+interface Artist {
+  _id: string
+  name: string
+  username?: string
+  followersCount?: number
+  avatar?: string
+  isVerified?: boolean
 }
 
 interface Props {
   onBack: () => void
   onPlay: (track: Track) => void
 }
-// ---------------------------------------------------------------------
 
 export default function SearchScreen({ onBack, onPlay }: Props) {
-  const [searchQuery, setSearchQuery] = useState("")
-  const [activeTab, setActiveTab] = useState<"songs" | "albums">("songs")
+  const [query, setQuery] = useState("")
+  const [activeTab, setActiveTab] = useState<"songs" | "albums" | "artists">(
+    "songs"
+  )
   const [songs, setSongs] = useState<Track[]>([])
   const [albums, setAlbums] = useState<Album[]>([])
-  const [loading, setLoading] = useState(true)
+  const [artists, setArtists] = useState<Artist[]>([])
+  const [loading, setLoading] = useState(false)
 
-  // 🟢 Fetch API dữ liệu thật
+  const fmtDur = (sec = 0) => {
+    const m = Math.floor(sec / 60)
+    const s = sec % 60
+    return `${m}:${String(s).padStart(2, "0")}`
+  }
+
+  // 🟢 fetch bằng axios instance `api`
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const [songRes, albumRes] = await Promise.all([
-          fetch("http://10.33.64.38:5000/api/all"),
-          fetch("http://10.33.64.38:5000/api/albums"),
+        const [songRes, albumRes, artistRes] = await Promise.all([
+          api.get("/allsongs", { params: { q: query } }),
+          api.get("/allalbums", { params: { q: query } }),
+          api.get("/artists/search", { params: { q: query } }),
         ])
 
-        const songData = await songRes.json()
-        const albumData = await albumRes.json()
+        const sList = Array.isArray(songRes.data)
+          ? songRes.data
+          : songRes.data.items || []
+        const aList = Array.isArray(albumRes.data)
+          ? albumRes.data
+          : albumRes.data.items || []
+        const artList = Array.isArray(artistRes.data)
+          ? artistRes.data
+          : artistRes.data.items || []
 
-        console.log("🎵 Songs:", songData)
-        console.log("💿 Albums:", albumData)
+        setSongs(
+          sList.map((s: any) => ({
+            _id: s._id,
+            title: s.title,
+            artist: s.artistName || s.artist,
+            imageUrl: s.imageUrl,
+            duration: s.duration || s.durationSec || 0,
+          }))
+        )
 
-        setSongs(Array.isArray(songData) ? songData : songData.songs || [])
-        setAlbums(Array.isArray(albumData) ? albumData : albumData.albums || [])
+        setAlbums(
+          aList.map((a: any) => ({
+            _id: a._id,
+            title: a.title,
+            artistName: a.artistName,
+            imageUrl: a.imageUrl,
+            tracks: Array.isArray(a.songs)
+              ? a.songs.length
+              : a.tracks || 0,
+          }))
+        )
+
+        setArtists(
+          artList.map((u: any) => ({
+            _id: u._id,
+            name: u.name,
+            username: u.username,
+            followersCount: u.followersCount || 0,
+            avatar: u.avatar,
+            isVerified: u.isVerified,
+          }))
+        )
       } catch (err) {
         console.error("[Search fetch error]", err)
       } finally {
@@ -76,21 +124,7 @@ export default function SearchScreen({ onBack, onPlay }: Props) {
     }
 
     fetchData()
-  }, [])
-
-  const filteredSongs = songs.filter(
-    (s) =>
-      s.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.artist?.toLowerCase().includes(searchQuery.toLowerCase())
-  )
-
-  const filteredAlbums = albums.filter(
-    (a) =>
-      a.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      a.artist?.toLowerCase().includes(searchQuery.toLowerCase())
-  )
-
-  const handlePlaySong = (song: Track) => onPlay(song)
+  }, [query])
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -111,40 +145,34 @@ export default function SearchScreen({ onBack, onPlay }: Props) {
             style={styles.searchInput}
             placeholder="Tìm bài hát, album, nghệ sĩ..."
             placeholderTextColor="#64748b"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
+            value={query}
+            onChangeText={setQuery}
             autoFocus
           />
         </View>
 
         {/* Tabs */}
         <View style={styles.tabContainer}>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === "songs" && styles.tabActive]}
-            onPress={() => setActiveTab("songs")}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === "songs" && styles.tabTextActive,
-              ]}
+          {["songs", "albums", "artists"].map((tab) => (
+            <TouchableOpacity
+              key={tab}
+              style={[styles.tab, activeTab === tab && styles.tabActive]}
+              onPress={() => setActiveTab(tab as any)}
             >
-              Bài hát
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === "albums" && styles.tabActive]}
-            onPress={() => setActiveTab("albums")}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === "albums" && styles.tabTextActive,
-              ]}
-            >
-              Album
-            </Text>
-          </TouchableOpacity>
+              <Text
+                style={[
+                  styles.tabText,
+                  activeTab === tab && styles.tabTextActive,
+                ]}
+              >
+                {tab === "songs"
+                  ? "Bài hát"
+                  : tab === "albums"
+                  ? "Album"
+                  : "Nghệ sĩ"}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
         {/* Content */}
@@ -160,21 +188,21 @@ export default function SearchScreen({ onBack, onPlay }: Props) {
             />
           ) : activeTab === "songs" ? (
             <View style={styles.songList}>
-              {filteredSongs.length === 0 ? (
-                <Text style={styles.emptyText}>Không có bài hát nào</Text>
+              {songs.length === 0 ? (
+                <Text style={styles.emptyText}>Không có bài hát phù hợp</Text>
               ) : (
-                filteredSongs.map((song) => (
+                songs.map((s) => (
                   <TouchableOpacity
-                    key={song._id}
+                    key={s._id}
                     style={styles.songItem}
-                    activeOpacity={0.7}
-                    onPress={() => handlePlaySong(song)}
+                    activeOpacity={0.8}
+                    onPress={() => onPlay(s)}
                   >
-                    <View style={styles.songImageContainer}>
+                    <View style={styles.songImageWrap}>
                       <Image
                         source={{
                           uri:
-                            song.imageUrl ||
+                            s.imageUrl ||
                             "https://cdn-icons-png.flaticon.com/512/1384/1384060.png",
                         }}
                         style={styles.songImage}
@@ -185,52 +213,83 @@ export default function SearchScreen({ onBack, onPlay }: Props) {
                     </View>
                     <View style={styles.songInfo}>
                       <Text style={styles.songName} numberOfLines={1}>
-                        {song.title || "Không tên"}
+                        {s.title}
                       </Text>
                       <Text style={styles.songArtist} numberOfLines={1}>
-                        {song.artist || "Không rõ nghệ sĩ"}
+                        {s.artist}
                       </Text>
                     </View>
                     <Text style={styles.songDuration}>
-                      {song.duration
-                        ? Math.floor(song.duration / 60) +
-                          ":" +
-                          (song.duration % 60).toString().padStart(2, "0")
-                        : "--:--"}
+                      {fmtDur(s.duration)}
                     </Text>
                   </TouchableOpacity>
                 ))
               )}
             </View>
-          ) : (
+          ) : activeTab === "albums" ? (
             <View style={styles.albumGrid}>
-              {filteredAlbums.length === 0 ? (
-                <Text style={styles.emptyText}>Không có album nào</Text>
+              {albums.length === 0 ? (
+                <Text style={styles.emptyText}>Không có album phù hợp</Text>
               ) : (
-                filteredAlbums.map((album) => (
+                albums.map((a) => (
                   <TouchableOpacity
-                    key={album._id}
+                    key={a._id}
                     style={styles.albumCard}
                     activeOpacity={0.8}
                   >
                     <Image
                       source={{
                         uri:
-                          album.imageUrl ||
+                          a.imageUrl ||
                           "https://cdn-icons-png.flaticon.com/512/169/169367.png",
                       }}
                       style={styles.albumImage}
                     />
                     <Text style={styles.albumName} numberOfLines={1}>
-                      {album.name}
+                      {a.title}
                     </Text>
                     <Text style={styles.albumArtist} numberOfLines={1}>
-                      {album.artist}
+                      {a.artistName}
                     </Text>
                     <Text style={styles.albumTracks}>
-                      {album.tracks || 0} bài hát
+                      {a.tracks || 0} bài hát
                     </Text>
                   </TouchableOpacity>
+                ))
+              )}
+            </View>
+          ) : (
+            <View style={styles.artistList}>
+              {artists.length === 0 ? (
+                <Text style={styles.emptyText}>Không có nghệ sĩ phù hợp</Text>
+              ) : (
+                artists.map((a) => (
+                  <View key={a._id} style={styles.artistItem}>
+                    <Image
+                      source={{
+                        uri:
+                          a.avatar ||
+                          "https://cdn-icons-png.flaticon.com/512/149/149071.png",
+                      }}
+                      style={styles.artistAvatar}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center" }}>
+                        <Text style={styles.artistName}>{a.name}</Text>
+                        {a.isVerified && (
+                          <BadgeCheck
+                            color="#60a5fa"
+                            fill="#60a5fa"
+                            size={14}
+                            style={{ marginLeft: 6 }}
+                          />
+                        )}
+                      </View>
+                      <Text style={styles.artistSub}>
+                        Nghệ sĩ • {a.followersCount || 0} người theo dõi
+                      </Text>
+                    </View>
+                  </View>
                 ))
               )}
             </View>
@@ -293,7 +352,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     gap: 12,
   },
-  songImageContainer: { position: "relative" },
+  songImageWrap: { position: "relative" },
   songImage: { width: 48, height: 48, borderRadius: 8 },
   playOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -317,5 +376,17 @@ const styles = StyleSheet.create({
   albumName: { fontSize: 14, fontWeight: "600", color: "#fff", marginTop: 8 },
   albumArtist: { fontSize: 12, color: "#94a3b8" },
   albumTracks: { fontSize: 11, color: "#64748b", marginTop: 4 },
+  artistList: { gap: 12 },
+  artistItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1e293b",
+    borderRadius: 12,
+    padding: 12,
+    gap: 12,
+  },
+  artistAvatar: { width: 48, height: 48, borderRadius: 24 },
+  artistName: { fontSize: 15, fontWeight: "600", color: "#fff" },
+  artistSub: { fontSize: 12, color: "#94a3b8" },
   emptyText: { color: "#94a3b8", textAlign: "center", marginTop: 40 },
 })

@@ -1,571 +1,422 @@
-"use client"
-
-import { useState, useRef, useEffect } from "react"
+// screens/ChatScreen.tsx
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import {
   View,
   Text,
   StyleSheet,
-  Image,
   TouchableOpacity,
+  Image,
   ScrollView,
   TextInput,
   KeyboardAvoidingView,
   Platform,
-  Dimensions,
-} from "react-native"
+} from "react-native";
 import {
   Send,
   Smile,
-  Paperclip,
   Sparkles,
   ChevronLeft,
   MoreVertical,
-} from "lucide-react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
-
-const { width } = Dimensions.get("window")
-
-// === INTERFACES ===
-interface Chat {
-  id: number
-  name: string
-  avatar: any
-  lastMessage: string
-  time: string
-  online: boolean
-  isAI: boolean
-}
-
-interface Message {
-  id: number
-  sender: string
-  message: string
-  time: string
-  isMe: boolean
-}
-
-const GEMINI_API_KEY = "AIzaSyALOm3FOOObguX5kHkJ8yOVldxonf2dLo4";
-
-
-// === DỮ LIỆU ===
-const mockChats: Chat[] = [
-  {
-    id: 0,
-    name: "Gemini AI",
-    avatar: require("../assets/i1.jpg"),
-    lastMessage: "How can I help you today?",
-    time: "now",
-    online: true,
-    isAI: true,
-  },
-  {
-    id: 1,
-    name: "As a Programmer",
-    avatar: require("../assets/i1.jpg"),
-    lastMessage: "Hey, check out this track!",
-    time: "2m ago",
-    online: true,
-    isAI: false,
-  },
-  {
-    id: 2,
-    name: "Tania Star",
-    avatar: require("../assets/i1.jpg"),
-    lastMessage: "Love your new album!",
-    time: "1h ago",
-    online: true,
-    isAI: false,
-  },
-  {
-    id: 3,
-    name: "Music Lover",
-    avatar: require("../assets/i1.jpg"),
-    lastMessage: "When is the next release?",
-    time: "3h ago",
-    online: false,
-    isAI: false,
-  },
-]
+  Circle,
+} from "lucide-react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useChatStore } from "../store/useChatStore";
+import { useUserStore } from "../store/useUserStore";
+import { api } from "../lib/api";
 
 const presetQuestions = [
-  "What are the trending music genres right now?",
-  "How can I promote my music on VibeMelody?",
-  "Tips for creating a successful album",
-  "How to grow my fanbase?",
-]
+  "Cho mình vài mẹo khám phá nhạc hay trên VibeMelody?",
+  "Gợi ý playlist nghe buổi tối nhẹ nhàng được không?",
+  "Gợi ý 5 bài mới từ nghệ sĩ mình theo dõi",
+  "Mình buồn, gợi ý vài bài hợp mood buồn",
+  "Mình mệt, gợi ý vài bài dễ nghe thư giãn",
+  "Cần vài bài giúp tập trung học bài",
+];
 
-const mockMessages: Message[] = [
-  {
-    id: 1,
-    sender: "As a Programmer",
-    message: "Hey! Have you heard the new track?",
-    time: "10:30 AM",
-    isMe: false,
-  },
-  {
-    id: 2,
-    sender: "Me",
-    message: "Not yet! Is it good?",
-    time: "10:32 AM",
-    isMe: true,
-  },
-  {
-    id: 3,
-    sender: "As a Programmer",
-    message: "Amazing! You should check it out",
-    time: "10:33 AM",
-    isMe: false,
-  },
-]
+export default function ChatScreen({ onBack }: { onBack: () => void }) {
+  const scrollRef = useRef<ScrollView>(null);
+  const inputRef = useRef<TextInput>(null);
 
-interface Props {
-  onBack: () => void
-}
+  const { user } = useUserStore();
+  const {
+    users,
+    onlineUsers,
+    userActivities,
+    messages,
+    fetchUsers,
+    fetchMessages,
+    sendMessage,
+    initSocket,
+    setSelectedUser,
+    selectedUser,
+  } = useChatStore();
 
-export default function ChatScreen({ onBack }: Props) {
-  const [message, setMessage] = useState("")
-  const [selectedChat, setSelectedChat] = useState<Chat>(mockChats[0])
-  const [aiMessages, setAiMessages] = useState<Message[]>([])
-  const [showChatList, setShowChatList] = useState(true)
-  const scrollViewRef = useRef<ScrollView>(null)
-  const inputRef = useRef<TextInput>(null) // ĐÃ THÊM REF
+  const [selectedChat, setSelectedChat] = useState<any>(null);
+  const [message, setMessage] = useState("");
+  const [aiMessages, setAiMessages] = useState<any[]>([]);
+  const [showChatList, setShowChatList] = useState(true);
 
-  // Auto scroll to bottom
+  const currentUserId = user?._id || user?.id;
+  const isArtist = !!user?.isArtist;
+
+  // socket init
   useEffect(() => {
-    scrollViewRef.current?.scrollToEnd({ animated: true })
-  }, [aiMessages, mockMessages])
+    if (!currentUserId) return;
+    initSocket(currentUserId);
+    fetchUsers();
+  }, [currentUserId]);
 
-  const handlePresetQuestion = (question: string) => {
-    setMessage(question)
-    // ĐÃ SỬA: DÙNG REF ĐỂ FOCUS
-    setTimeout(() => inputRef.current?.focus(), 100)
-  }
+  const chatItems = useMemo(() => {
+    const list: any[] = [];
 
-  const handleSendMessage = async () => {
-  if (!message.trim()) return;
+    if (isArtist) {
+      list.push({
+        id: "ai",
+        type: "ai",
+        name: "VibeMelody AI",
+        avatar: require("../assets/i1.jpg"),
+        lastMessage:
+          aiMessages[aiMessages.length - 1]?.message ||
+          "How can I help you today?",
+        online: true,
+        isAI: true,
+      });
+    }
 
-  const newMessage: Message = {
-    id: Date.now(),
-    sender: "Me",
-    message: message,
-    time: new Date().toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    }),
-    isMe: true,
-  };
+    (users || []).forEach((u) => {
+      const uid = u._id || u.id;
+      if (!uid || String(uid) === String(currentUserId)) return;
+      list.push({
+        id: String(uid),
+        type: "user",
+        name: u.fullName || u.name || u.email,
+        avatar: u.imageUrl ? { uri: u.imageUrl } : require("../assets/i1.jpg"),
+        online: onlineUsers.has(String(uid)),
+        activity: userActivities.get(String(uid)),
+        raw: u,
+      });
+    });
+    return list;
+  }, [users, aiMessages, onlineUsers, userActivities]);
 
-  setAiMessages(prev => [...prev, newMessage]);
-  setMessage("");
+  // chọn AI đầu tiên nếu có
+  useEffect(() => {
+    if (!selectedChat && chatItems.length > 0) {
+      setSelectedChat(chatItems[0]);
+      if (chatItems[0].type === "user" && chatItems[0].raw)
+        setSelectedUser(chatItems[0].raw);
+    }
+  }, [chatItems]);
 
-  if (selectedChat.isAI) {
-    try {
-      console.log("[AI] sending:", message);
+  const displayMessages = useMemo(() => {
+    if (!selectedChat) return [];
+    if (selectedChat.type === "ai") return aiMessages;
 
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: message }] }],
-          }),
-        }
-      );
-
-      const data = await res.json();
-      console.log("[AI] response:", data);
-
-      const aiText =
-        data.candidates?.[0]?.content?.parts?.[0]?.text ||
-        "Sorry, I couldn’t get a response.";
-
-      const aiResponse: Message = {
-        id: Date.now() + 1,
-        sender: "Gemini AI",
-        message: aiText,
-        time: new Date().toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        isMe: false,
-      };
-
-      setAiMessages(prev => [...prev, aiResponse]);
-    } catch (err) {
-      console.error("[AI] error:", err);
-      setAiMessages(prev => [
-        ...prev,
-        {
-          id: Date.now() + 2,
-          sender: "Gemini AI",
-          message: "⚠️ Network error while contacting AI.",
-          time: new Date().toLocaleTimeString([], {
+    return (messages || []).map((m) => ({
+      id: m._id || m.id,
+      message: m.content || m.message,
+      isMe: String(m.senderId) === String(currentUserId),
+      time: m.createdAt
+        ? new Date(m.createdAt).toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
-          }),
-          isMe: false,
-        },
-      ]);
+          })
+        : "",
+    }));
+  }, [messages, aiMessages, selectedChat]);
+
+  const handlePreset = (text: string) => {
+    setMessage(text);
+    setTimeout(() => inputRef.current?.focus(), 100);
+  };
+
+  const handleSend = async () => {
+    if (!message.trim() || !selectedChat) return;
+    const text = message.trim();
+    const now = new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    setMessage("");
+
+    if (selectedChat.type === "ai") {
+      const optimistic = {
+        id: Date.now(),
+        message: text,
+        isMe: true,
+        time: now,
+      };
+      setAiMessages((p) => [...p, optimistic]);
+      try {
+        const res = await api.post("/ai/chat", { message: text });
+        const aiMsg = res.data?.data?.aiMessage;
+        if (aiMsg) {
+          setAiMessages((p) => [
+            ...p,
+            { id: aiMsg._id, message: aiMsg.content, isMe: false, time: now },
+          ]);
+        }
+      } catch {
+        setAiMessages((p) => [
+          ...p,
+          {
+            id: Date.now() + 1,
+            message: "AI đang bận, thử lại sau nhé 😅",
+            isMe: false,
+            time: now,
+          },
+        ]);
+      }
+      return;
     }
-  }
-};
 
+    sendMessage(selectedChat.id, currentUserId, text);
+  };
 
-  const messages = selectedChat.isAI ? aiMessages : mockMessages
+  useEffect(() => {
+    scrollRef.current?.scrollToEnd({ animated: true });
+  }, [aiMessages, messages]);
+
+  const msgs = displayMessages;
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
         style={styles.container}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        {/* HEADER */}
+        {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={onBack} style={styles.backBtn}>
+          <TouchableOpacity onPress={onBack}>
             <ChevronLeft color="#60a5fa" size={26} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Messages</Text>
-          <View style={{ width: 40 }} />
+          <MoreVertical color="#94a3b8" size={22} />
         </View>
 
-        <View style={styles.body}>
-          {/* CHAT LIST – THU NHỎ, ẨN/HIỆN MƯỢT */}
-          {showChatList && (
-            <View style={styles.chatList}>
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {mockChats.map(chat => (
-                  <TouchableOpacity
-                    key={chat.id}
-                    style={[
-                      styles.chatItem,
-                      selectedChat.id === chat.id && styles.chatItemActive,
-                    ]}
-                    onPress={() => {
-                      setSelectedChat(chat)
-                      setShowChatList(false)
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.avatarContainer}>
-                      <Image
-                        source={chat.avatar}
-                        style={styles.avatar}
-                        defaultSource={require("../assets/i1.jpg")}
-                      />
-                      {chat.online && <View style={styles.onlineDot} />}
-                      {chat.isAI && (
-                        <View style={styles.aiBadge}>
-                          <Sparkles color="#000" size={12} />
-                        </View>
-                      )}
-                    </View>
-                    <View style={styles.chatInfo}>
-                      <Text style={styles.chatName} numberOfLines={1}>
-                        {chat.name}
-                      </Text>
-                      <Text style={styles.lastMessage} numberOfLines={1}>
-                        {chat.lastMessage}
-                      </Text>
-                    </View>
-                    <Text style={styles.chatTime}>{chat.time}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          )}
-
-          {/* CHAT DETAIL */}
-          <View style={styles.chatDetail}>
-            {/* Chat Header */}
-            <View style={styles.chatHeader}>
+        {/* Chat list */}
+        {showChatList ? (
+          <ScrollView style={styles.chatList}>
+            {chatItems.map((chat) => (
               <TouchableOpacity
-                onPress={() => setShowChatList(true)}
-                style={styles.chatHeaderLeft}
-                activeOpacity={0.7}
+                key={chat.id}
+                style={[
+                  styles.chatItem,
+                  selectedChat?.id === chat.id && styles.chatItemActive,
+                ]}
+                onPress={() => {
+                  setSelectedChat(chat);
+                  setShowChatList(false);
+                  if (chat.type === "user" && chat.raw)
+                    setSelectedUser(chat.raw);
+                }}
               >
-                <ChevronLeft color="#94a3b8" size={20} />
-                <View style={styles.avatarContainer}>
-                  <Image
-                    source={selectedChat.avatar}
-                    style={styles.avatarSmall}
-                    defaultSource={require("../assets/i1.jpg")}
-                  />
-                  {selectedChat.isAI && (
-                    <View style={styles.aiBadgeSmall}>
-                      <Sparkles color="#000" size={11} />
-                    </View>
-                  )}
+                <View style={{ position: "relative" }}>
+                  <Image source={chat.avatar} style={styles.avatar} />
+                  {chat.online && <View style={styles.onlineDot} />}
                 </View>
-                <View style={styles.headerInfo}>
-                  <Text style={styles.selectedName}>{selectedChat.name}</Text>
-                  <Text style={styles.statusText}>
-                    {selectedChat.online ? "Online" : "Offline"}
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.chatName}>{chat.name}</Text>
+                  <Text style={styles.lastMessage} numberOfLines={1}>
+                    {chat.activity || chat.lastMessage || "No message yet"}
                   </Text>
                 </View>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.moreBtn}>
-                <MoreVertical color="#94a3b8" size={22} />
+            ))}
+          </ScrollView>
+        ) : (
+          <>
+            {/* Chat detail */}
+            <View style={styles.chatHeader}>
+              <TouchableOpacity
+                onPress={() => setShowChatList(true)}
+                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+              >
+                <ChevronLeft color="#94a3b8" size={20} />
+                <Image
+                  source={selectedChat?.avatar}
+                  style={{ width: 36, height: 36, borderRadius: 18 }}
+                />
+                <View>
+                  <Text style={{ color: "#fff", fontWeight: "600" }}>
+                    {selectedChat?.name}
+                  </Text>
+                  {selectedChat?.type === "user" && (
+                    <Text style={styles.activityText}>
+                      {onlineUsers.has(selectedChat?.id)
+                        ? "Online"
+                        : userActivities.get(selectedChat?.id) ||
+                          "Offline"}
+                    </Text>
+                  )}
+                </View>
               </TouchableOpacity>
             </View>
 
-            {/* Messages */}
             <ScrollView
-              ref={scrollViewRef}
-              style={styles.messagesContainer}
+              ref={scrollRef}
+              contentContainerStyle={{ padding: 14 }}
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: 16 }}
             >
-              {selectedChat.isAI && aiMessages.length === 0 ? (
+              {selectedChat?.type === "ai" && aiMessages.length === 0 ? (
                 <View style={styles.emptyAIChat}>
                   <View style={styles.aiWelcome}>
-                    <View style={styles.aiIcon}>
-                      <Sparkles color="#60a5fa" size={36} />
-                    </View>
-                    <Text style={styles.aiTitle}>Chat with Gemini AI</Text>
+                    <Sparkles color="#60a5fa" size={40} />
+                    <Text style={styles.aiTitle}>Chat with VibeMelody AI</Text>
                     <Text style={styles.aiDesc}>
-                      Ask me anything about music, VibeMelody, or get recommendations!
+                      Ask anything about music, playlists, or artists!
                     </Text>
                   </View>
                   <View style={styles.presetGrid}>
                     {presetQuestions.map((q, i) => (
                       <TouchableOpacity
                         key={i}
+                        onPress={() => handlePreset(q)}
                         style={styles.presetBtn}
-                        onPress={() => handlePresetQuestion(q)}
-                        activeOpacity={0.8}
                       >
-                        <Text style={styles.presetText} numberOfLines={2}>
-                          {q}
-                        </Text>
+                        <Text style={styles.presetText}>{q}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
                 </View>
               ) : (
-                <View style={styles.messagesList}>
-                  {messages.map(msg => (
+                msgs.map((m) => (
+                  <View
+                    key={m.id}
+                    style={[
+                      styles.msgWrap,
+                      m.isMe ? styles.msgRight : styles.msgLeft,
+                    ]}
+                  >
                     <View
-                      key={msg.id}
                       style={[
-                        styles.messageWrapper,
-                        msg.isMe ? styles.messageRight : styles.messageLeft,
+                        styles.msgBubble,
+                        m.isMe ? styles.myBubble : styles.otherBubble,
                       ]}
                     >
-                      <View
+                      <Text
                         style={[
-                          styles.messageBubble,
-                          msg.isMe ? styles.myBubble : styles.otherBubble,
+                          styles.msgText,
+                          m.isMe ? styles.myText : styles.otherText,
                         ]}
                       >
-                        <Text
-                          style={[
-                            styles.messageText,
-                            msg.isMe ? styles.myText : styles.otherText,
-                          ]}
-                        >
-                          {msg.message}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.messageTime,
-                            msg.isMe ? styles.myTime : styles.otherTime,
-                          ]}
-                        >
-                          {msg.time}
-                        </Text>
-                      </View>
+                        {m.message}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.msgTime,
+                          m.isMe ? styles.myTime : styles.otherTime,
+                        ]}
+                      >
+                        {m.time}
+                      </Text>
                     </View>
-                  ))}
-                </View>
+                  </View>
+                ))
               )}
             </ScrollView>
 
             {/* Input */}
             <View style={styles.inputContainer}>
-              <TouchableOpacity style={styles.inputIcon}>
-                <Paperclip color="#94a3b8" size={22} />
-              </TouchableOpacity>
               <TextInput
-                ref={inputRef} // ĐÃ GẮN REF
+                ref={inputRef}
                 style={styles.textInput}
                 placeholder="Type a message..."
                 placeholderTextColor="#64748b"
                 value={message}
                 onChangeText={setMessage}
-                onSubmitEditing={handleSendMessage}
-                returnKeyType="send"
+                onSubmitEditing={handleSend}
                 multiline
-                maxLength={500}
               />
-              <TouchableOpacity style={styles.inputIcon}>
-                <Smile color="#94a3b8" size={22} />
-              </TouchableOpacity>
               <TouchableOpacity
+                onPress={handleSend}
                 style={[
                   styles.sendBtn,
-                  !message.trim() && styles.sendBtnDisabled,
+                  !message.trim() && { opacity: 0.4 },
                 ]}
-                onPress={handleSendMessage}
                 disabled={!message.trim()}
-                activeOpacity={0.8}
               >
                 <Send color="#000" size={22} />
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
+          </>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
-  )
+  );
 }
 
-// === STYLES – DANH SÁCH CHAT THU NHỎ, ĐẸP ===
+// === STYLES (same tone: #0f172a / #60a5fa)
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "#0f172a" },
   container: { flex: 1 },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    padding: 14,
     borderBottomWidth: 1,
     borderBottomColor: "#1e293b",
-    zIndex: 10,
   },
-  backBtn: { padding: 4 },
-  headerTitle: { fontSize: 19, fontWeight: "bold", color: "#fff", fontFamily: "DancingScript_700Bold" },
-
-  body: { flex: 1, flexDirection: "row" },
-
-  // CHAT LIST – THU NHỎ, ẨN/HIỆN
-  chatList: {
-    width: width * 0.78, // ĐÃ GIẢM TỪ 85% → 78%
-    backgroundColor: "#0f172a",
-    borderRightWidth: 1,
-    borderRightColor: "#1e293b",
-    position: "absolute",
-    top: 0,
-    left: 0,
-    bottom: 0,
-    zIndex: 100,
-    paddingTop: 12,
-  },
+  headerTitle: { color: "#fff", fontSize: 18, fontWeight: "bold" },
+  chatList: { flex: 1, backgroundColor: "#0f172a" },
   chatItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 10,
+    padding: 12,
     borderBottomWidth: 1,
     borderBottomColor: "#1e293b",
   },
   chatItemActive: { backgroundColor: "#1e293b" },
-  avatarContainer: { position: "relative" },
-  avatar: { width: 44, height: 44, borderRadius: 22 }, // ĐÃ GIẢM KÍCH THƯỚC
+  avatar: { width: 46, height: 46, borderRadius: 23, marginRight: 10 },
   onlineDot: {
     position: "absolute",
-    bottom: 0,
-    right: 0,
-    width: 12,
-    height: 12,
-    backgroundColor: "#10b981",
-    borderRadius: 6,
+    right: 6,
+    bottom: 6,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#22c55e",
     borderWidth: 2,
     borderColor: "#0f172a",
   },
-  aiBadge: {
-    position: "absolute",
-    top: -4,
-    right: -4,
-    width: 20,
-    height: 20,
-    backgroundColor: "#60a5fa",
-    borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  chatInfo: { flex: 1 },
-  chatName: { color: "#fff", fontWeight: "600", fontSize: 14.5 }, // ĐÃ GIẢM FONT
-  lastMessage: { color: "#94a3b8", fontSize: 12.5, marginTop: 1 },
-  chatTime: { color: "#64748b", fontSize: 11.5 },
-
-  // CHAT DETAIL
-  chatDetail: { flex: 1, flexDirection: "column" },
+  chatName: { color: "#fff", fontWeight: "600", fontSize: 15 },
+  lastMessage: { color: "#94a3b8", fontSize: 13 },
   chatHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    padding: 10,
     borderBottomWidth: 1,
     borderBottomColor: "#1e293b",
-    backgroundColor: "#0f172a",
   },
-  chatHeaderLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
-  avatarSmall: { width: 40, height: 40, borderRadius: 20 },
-  aiBadgeSmall: {
-    position: "absolute",
-    top: -4,
-    right: -4,
-    width: 18,
-    height: 18,
-    backgroundColor: "#60a5fa",
-    borderRadius: 9,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  headerInfo: { flex: 1 },
-  selectedName: { color: "#fff", fontWeight: "600", fontSize: 16 },
-  statusText: { color: "#10b981", fontSize: 12, marginTop: 1 },
-  moreBtn: { padding: 8 },
-
-  messagesContainer: { flex: 1, paddingHorizontal: 14 },
-  emptyAIChat: { flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 20 },
-  aiWelcome: { alignItems: "center", marginBottom: 36 },
-  aiIcon: { width: 70, height: 70, backgroundColor: "#60a5fa20", borderRadius: 35, justifyContent: "center", alignItems: "center", marginBottom: 18 },
-  aiTitle: { fontSize: 19, fontWeight: "bold", color: "#fff", marginBottom: 8 },
-  aiDesc: { fontSize: 14.5, color: "#94a3b8", textAlign: "center", lineHeight: 22 },
-  presetGrid: { width: "100%", gap: 12 },
-  presetBtn: { backgroundColor: "#1e293b", padding: 16, borderRadius: 16, borderWidth: 1, borderColor: "#334155" },
-  presetText: { color: "#e2e8f0", fontSize: 14.5, lineHeight: 21 },
-
-  messagesList: { paddingVertical: 10 },
-  messageWrapper: { marginVertical: 6, flexDirection: "row", paddingHorizontal: 4 },
-  messageLeft: { justifyContent: "flex-start" },
-  messageRight: { justifyContent: "flex-end" },
-  messageBubble: { maxWidth: "78%", paddingHorizontal: 16, paddingVertical: 11, borderRadius: 20 },
-  myBubble: { backgroundColor: "#60a5fa", borderBottomRightRadius: 6 },
-  otherBubble: { backgroundColor: "#1e293b", borderBottomLeftRadius: 6 },
-  messageText: { fontSize: 15.5, lineHeight: 21 },
+  activityText: { color: "#60a5fa", fontSize: 12 },
+  msgWrap: { marginVertical: 6 },
+  msgLeft: { alignSelf: "flex-start" },
+  msgRight: { alignSelf: "flex-end" },
+  msgBubble: { borderRadius: 20, padding: 12, maxWidth: "80%" },
+  myBubble: { backgroundColor: "#60a5fa" },
+  otherBubble: { backgroundColor: "#1e293b" },
+  msgText: { fontSize: 15 },
   myText: { color: "#000" },
   otherText: { color: "#fff" },
-  messageTime: { fontSize: 11.5, marginTop: 4, opacity: 0.75 },
+  msgTime: { fontSize: 11, marginTop: 4, opacity: 0.75 },
   myTime: { color: "#000" },
   otherTime: { color: "#94a3b8" },
-
   inputContainer: {
     flexDirection: "row",
-    alignItems: "flex-end",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    alignItems: "center",
     borderTopWidth: 1,
     borderTopColor: "#1e293b",
+    padding: 10,
     backgroundColor: "#0f172a",
-    gap: 10,
   },
-  inputIcon: { padding: 6 },
   textInput: {
     flex: 1,
     backgroundColor: "#1e293b",
     color: "#fff",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 24,
-    fontSize: 15.5,
-    maxHeight: 100,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 22,
+    fontSize: 15,
   },
   sendBtn: {
     width: 46,
@@ -574,6 +425,19 @@ const styles = StyleSheet.create({
     borderRadius: 23,
     justifyContent: "center",
     alignItems: "center",
+    marginLeft: 8,
   },
-  sendBtnDisabled: { opacity: 0.5 },
-})
+  emptyAIChat: { flex: 1, alignItems: "center", paddingTop: 60 },
+  aiWelcome: { alignItems: "center", marginBottom: 30 },
+  aiTitle: { color: "#fff", fontWeight: "700", fontSize: 18, marginTop: 8 },
+  aiDesc: { color: "#94a3b8", fontSize: 14, textAlign: "center" },
+  presetGrid: { width: "100%", padding: 16, gap: 12 },
+  presetBtn: {
+    backgroundColor: "#1e293b",
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  presetText: { color: "#e2e8f0", fontSize: 14.5 },
+});

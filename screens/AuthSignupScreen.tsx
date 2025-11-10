@@ -19,7 +19,7 @@ export default function AuthSignupScreen({ onBack, onLogin, onSuccess }: Props) 
 
   const handleSignup = async () => {
     console.log('signup')
-   const res = await signup({ fullName: fullName.trim(), email: email.trim(), password: pw, confirmPassword: pw2 });
+   const res = await signup({ name: fullName.trim(), email: email.trim(), password: pw, confirmPassword: pw2 });
    const user = useUserStore.getState().user;
     if (user) onSuccess();
   };
