@@ -231,6 +231,9 @@ export default function App() {
                       case "registerArtist":
                         setCurrentScreen("registerArtist");
                         break;
+                      case "artistProfile":
+                        setCurrentScreen("artistProfile");
+                        break;
                       case "logout":
                         useUserStore.getState().logout();
                         usePlayerStore.getState().resetPlayer();
@@ -248,15 +251,6 @@ export default function App() {
                   onSuccess={() => setCurrentScreen("profile")}
                 />
               ))}
-
-            {/* Auth */}
-            {currentScreen === "authLogin" && (
-              <AuthLoginScreen
-                onBack={goBack}
-                onSignup={() => setCurrentScreen("authSignup")}
-                onSuccess={() => setCurrentScreen("profile")}
-              />
-            )}
 
             {currentScreen === "authSignup" && (
               <AuthSignupScreen
@@ -356,16 +350,7 @@ export default function App() {
               currentScreen={currentScreen}
               onNavigate={(tab) => {
                 if (tab === "profile") {
-                  if (!user) {
-                    setCurrentScreen("authLogin");
-                    return;
-                  }
-
-                  if ((user as any).isArtist) {
-                    setCurrentScreen("artistProfile");
-                  } else {
-                    setCurrentScreen("profile");
-                  }
+                  setCurrentScreen("profile");
                 } else {
                   setCurrentScreen(tab);
                 }
