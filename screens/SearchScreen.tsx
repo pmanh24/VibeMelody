@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -9,80 +9,84 @@ import {
   ScrollView,
   ActivityIndicator,
   Dimensions,
-} from "react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
-import { Search, Play, ChevronLeft, BadgeCheck } from "lucide-react-native"
-import { api } from "../lib/api" // ✅ lấy API qua axios instance
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Search, Play, ChevronLeft, BadgeCheck } from "lucide-react-native";
+import { api } from "../lib/api"; // ✅ lấy API qua axios instance
 
-const { width } = Dimensions.get("window")
-const ALBUM_SIZE = (width - 48 - 18) / 4
-
+const { width } = Dimensions.get("window");
+// const ALBUM_SIZE = (width - 48 - 18) / 4
+const H_PADDING = 16;
+const GAP = 16;
+const ALBUM_COLS = 2;
+const ALBUM_SIZE =
+  (width - H_PADDING * 2 - GAP * (ALBUM_COLS - 1)) / ALBUM_COLS;
 interface Track {
-  _id: string
-  title: string
-  artist: string
-  imageUrl?: string
-  duration?: number
+  _id: string;
+  title: string;
+  artist: string;
+  imageUrl?: string;
+  duration?: number;
 }
 
 interface Album {
-  _id: string
-  title: string
-  artistName?: string
-  imageUrl?: string
-  tracks?: number
+  _id: string;
+  title: string;
+  artistName?: string;
+  imageUrl?: string;
+  tracks?: number;
 }
 
 interface Artist {
-  _id: string
-  name: string
-  username?: string
-  followersCount?: number
-  avatar?: string
-  isVerified?: boolean
+  _id: string;
+  name: string;
+  username?: string;
+  followersCount?: number;
+  avatar?: string;
+  isVerified?: boolean;
 }
 
 interface Props {
-  onBack: () => void
-  onPlay: (track: Track) => void
+  onBack: () => void;
+  onPlay: (track: Track) => void;
 }
 
 export default function SearchScreen({ onBack, onPlay }: Props) {
-  const [query, setQuery] = useState("")
+  const [query, setQuery] = useState("");
   const [activeTab, setActiveTab] = useState<"songs" | "albums" | "artists">(
     "songs"
-  )
-  const [songs, setSongs] = useState<Track[]>([])
-  const [albums, setAlbums] = useState<Album[]>([])
-  const [artists, setArtists] = useState<Artist[]>([])
-  const [loading, setLoading] = useState(false)
+  );
+  const [songs, setSongs] = useState<Track[]>([]);
+  const [albums, setAlbums] = useState<Album[]>([]);
+  const [artists, setArtists] = useState<Artist[]>([]);
+  const [loading, setLoading] = useState(false);
 
   const fmtDur = (sec = 0) => {
-    const m = Math.floor(sec / 60)
-    const s = sec % 60
-    return `${m}:${String(s).padStart(2, "0")}`
-  }
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${String(s).padStart(2, "0")}`;
+  };
 
   // 🟢 fetch bằng axios instance `api`
   useEffect(() => {
     const fetchData = async () => {
       try {
-        setLoading(true)
+        setLoading(true);
         const [songRes, albumRes, artistRes] = await Promise.all([
           api.get("/allsongs", { params: { q: query } }),
           api.get("/allalbums", { params: { q: query } }),
           api.get("/artists/search", { params: { q: query } }),
-        ])
+        ]);
 
         const sList = Array.isArray(songRes.data)
           ? songRes.data
-          : songRes.data.items || []
+          : songRes.data.items || [];
         const aList = Array.isArray(albumRes.data)
           ? albumRes.data
-          : albumRes.data.items || []
+          : albumRes.data.items || [];
         const artList = Array.isArray(artistRes.data)
           ? artistRes.data
-          : artistRes.data.items || []
+          : artistRes.data.items || [];
 
         setSongs(
           sList.map((s: any) => ({
@@ -92,19 +96,17 @@ export default function SearchScreen({ onBack, onPlay }: Props) {
             imageUrl: s.imageUrl,
             duration: s.duration || s.durationSec || 0,
           }))
-        )
+        );
 
         setAlbums(
           aList.map((a: any) => ({
             _id: a._id,
             title: a.title,
-            artistName: a.artistName,
+            artistName: a.artistName || a.artist || a.ownerName, // fallback
             imageUrl: a.imageUrl,
-            tracks: Array.isArray(a.songs)
-              ? a.songs.length
-              : a.tracks || 0,
+            tracks: Array.isArray(a.songs) ? a.songs.length : a.tracks || 0,
           }))
-        )
+        );
 
         setArtists(
           artList.map((u: any) => ({
@@ -115,16 +117,16 @@ export default function SearchScreen({ onBack, onPlay }: Props) {
             avatar: u.avatar,
             isVerified: u.isVerified,
           }))
-        )
+        );
       } catch (err) {
-        console.error("[Search fetch error]", err)
+        console.error("[Search fetch error]", err);
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
-    fetchData()
-  }, [query])
+    fetchData();
+  }, [query]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -176,10 +178,7 @@ export default function SearchScreen({ onBack, onPlay }: Props) {
         </View>
 
         {/* Content */}
-        <ScrollView
-          style={styles.content}
-          showsVerticalScrollIndicator={false}
-        >
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           {loading ? (
             <ActivityIndicator
               color="#60a5fa"
@@ -274,7 +273,9 @@ export default function SearchScreen({ onBack, onPlay }: Props) {
                       style={styles.artistAvatar}
                     />
                     <View style={{ flex: 1 }}>
-                      <View style={{ flexDirection: "row", alignItems: "center" }}>
+                      <View
+                        style={{ flexDirection: "row", alignItems: "center" }}
+                      >
                         <Text style={styles.artistName}>{a.name}</Text>
                         {a.isVerified && (
                           <BadgeCheck
@@ -297,7 +298,7 @@ export default function SearchScreen({ onBack, onPlay }: Props) {
         </ScrollView>
       </View>
     </SafeAreaView>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -368,14 +369,34 @@ const styles = StyleSheet.create({
   albumGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 16,
     justifyContent: "space-between",
   },
-  albumCard: { width: ALBUM_SIZE },
-  albumImage: { width: "100%", height: ALBUM_SIZE, borderRadius: 12 },
-  albumName: { fontSize: 14, fontWeight: "600", color: "#fff", marginTop: 8 },
-  albumArtist: { fontSize: 12, color: "#94a3b8" },
-  albumTracks: { fontSize: 11, color: "#64748b", marginTop: 4 },
+  albumCard: {
+    width: ALBUM_SIZE,
+    marginBottom: 16,
+  },
+  albumImage: {
+    width: "100%",
+    height: ALBUM_SIZE,
+    borderRadius: 12,
+    backgroundColor: "#020617",
+  },
+  albumName: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#fff",
+    marginTop: 8,
+  },
+  albumArtist: {
+    fontSize: 12,
+    color: "#94a3b8",
+    marginTop: 2,
+  },
+  albumTracks: {
+    fontSize: 11,
+    color: "#64748b",
+    marginTop: 2,
+  },
   artistList: { gap: 12 },
   artistItem: {
     flexDirection: "row",
@@ -389,4 +410,4 @@ const styles = StyleSheet.create({
   artistName: { fontSize: 15, fontWeight: "600", color: "#fff" },
   artistSub: { fontSize: 12, color: "#94a3b8" },
   emptyText: { color: "#94a3b8", textAlign: "center", marginTop: 40 },
-})
+});

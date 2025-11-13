@@ -1,7 +1,4 @@
-// screens/MusicDetailScreen.tsx
-"use client";
-
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -13,7 +10,6 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { Audio } from "expo-av";
 import {
   Heart,
   Repeat2,
@@ -26,7 +22,9 @@ import {
   ChevronLeft,
 } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import {api} from "../lib/api";
+import { api } from "../lib/api";
+import { usePlayerStore } from "../store/usePlayerStore";
+import { useUserStore } from "../store/useUserStore";
 
 interface Song {
   _id: string;
@@ -39,7 +37,7 @@ interface Song {
 }
 
 interface Props {
-  songId: string;
+  songId: string | undefined;
   onBack: () => void;
 }
 
@@ -52,13 +50,15 @@ export default function MusicDetailScreen({ songId, onBack }: Props) {
   const [likesCount, setLikesCount] = useState(0);
   const [followersCount, setFollowersCount] = useState(0);
   const [comment, setComment] = useState("");
-  const [isPlaying, setIsPlaying] = useState(false);
   const [loading, setLoading] = useState(true);
   const [liking, setLiking] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
-  const [player, setPlayer] = useState<Audio.Sound | null>(null);
 
-  // 🟢 Fetch dữ liệu chính
+  // ⬇️ Player store
+  const { currentSong, isPlaying, setCurrentSong, togglePlay } =
+    usePlayerStore();
+  const { user } = useUserStore();
+  // fetch main data
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -80,7 +80,7 @@ export default function MusicDetailScreen({ songId, onBack }: Props) {
     };
   }, [songId]);
 
-  // 🟢 Like status
+  // like status
   useEffect(() => {
     if (!songId) return;
     (async () => {
@@ -92,51 +92,41 @@ export default function MusicDetailScreen({ songId, onBack }: Props) {
     })();
   }, [songId]);
 
-  // 🟢 Follow status
+  // follow status
   useEffect(() => {
     if (!artist?._id) return;
     (async () => {
       try {
-        const res = await api.get(
-          `/artists/${artist._id}/follow-status`
-        );
+        const res = await api.get(`/artists/${artist._id}/follow-status`);
         setIsFollowing(!!res.data.following);
         setFollowersCount(res.data.followersCount || 0);
       } catch {}
     })();
   }, [artist?._id]);
 
-  // 🟢 Dọn player khi rời
-  useEffect(() => {
-    return () => {
-      if (player) player.unloadAsync();
-    };
-  }, [player]);
-
-  // 🟢 Play / Pause nhạc
+  // ⬇️ Play/Pause dùng store
   const handlePlayPause = async () => {
-    if (!song?.audioUrl) return Alert.alert("No audio", "This song has no audio file.");
-    try {
-      if (isPlaying && player) {
-        await player.pauseAsync();
-        setIsPlaying(false);
-      } else if (player) {
-        await player.playAsync();
-        setIsPlaying(true);
-      } else {
-        const { sound } = await Audio.Sound.createAsync(
-          { uri: song.audioUrl },
-          { shouldPlay: true }
-        );
-        setPlayer(sound);
-        setIsPlaying(true);
-      }
-    } catch (err) {
-      console.error("Audio error:", err);
+    if (!song?.audioUrl) {
+      return Alert.alert("No audio", "This song has no audio file.");
+    }
+    const mapped = {
+      _id: song._id,
+      title: song.title,
+      artist: song.artist || artist.fullName || "Unknown",
+      imageUrl: song.imageUrl,
+      audioUrl: song.audioUrl,
+      duration: song.duration,
+    };
+
+    // nếu đang ở đúng bài → toggle; nếu khác bài → setCurrentSong (store sẽ tự play)
+    if (currentSong && currentSong._id === song._id) {
+      togglePlay();
+    } else {
+      setCurrentSong(mapped);
     }
   };
 
-  // 🟢 Toggle Like
+  // like
   const toggleLike = async () => {
     if (!song?._id || liking) return;
     setLiking(true);
@@ -146,9 +136,7 @@ export default function MusicDetailScreen({ songId, onBack }: Props) {
       setIsLiked(true);
       setLikesCount((c) => c + 1);
       try {
-        const res = await api.post(
-          `/songs/${song._id}/like`
-        );
+        const res = await api.post(`/songs/${song._id}/like`);
         setIsLiked(!!res.data.liked);
         setLikesCount(res.data.likesCount ?? prevCount + 1);
       } catch {
@@ -161,9 +149,7 @@ export default function MusicDetailScreen({ songId, onBack }: Props) {
       setIsLiked(false);
       setLikesCount((c) => Math.max(0, c - 1));
       try {
-        const res = await api.delete(
-          `/songs/${song._id}/like`
-        );
+        const res = await api.delete(`/songs/${song._id}/like`);
         setIsLiked(!!res.data.liked);
         setLikesCount(res.data.likesCount ?? prevCount - 1);
       } catch {
@@ -175,7 +161,6 @@ export default function MusicDetailScreen({ songId, onBack }: Props) {
     }
   };
 
-  // 🟢 Toggle Follow
   const toggleFollow = async () => {
     if (!artist?._id || followLoading) return;
     setFollowLoading(true);
@@ -185,9 +170,7 @@ export default function MusicDetailScreen({ songId, onBack }: Props) {
       setIsFollowing(true);
       setFollowersCount((c) => c + 1);
       try {
-        const res = await api.post(
-          `/artists/${artist._id}/follow`
-        );
+        const res = await api.post(`/artists/${artist._id}/follow`);
         setIsFollowing(!!res.data.following);
         setFollowersCount(res.data.followersCount ?? prevCount + 1);
       } catch {
@@ -200,9 +183,7 @@ export default function MusicDetailScreen({ songId, onBack }: Props) {
       setIsFollowing(false);
       setFollowersCount((c) => Math.max(0, c - 1));
       try {
-        const res = await api.delete(
-          `/artists/${artist._id}/follow`
-        );
+        const res = await api.delete(`/artists/${artist._id}/follow`);
         setIsFollowing(!!res.data.following);
         setFollowersCount(res.data.followersCount ?? prevCount - 1);
       } catch {
@@ -214,27 +195,31 @@ export default function MusicDetailScreen({ songId, onBack }: Props) {
     }
   };
 
-  // 🟢 Comment
   const handleSendComment = async () => {
     if (!song?._id || !comment.trim()) return;
     try {
-      const { data } = await api.post(
-        `/songs/${song._id}/comments`,
-        { content: comment }
-      );
+      const { data } = await api.post(`/songs/${song._id}/comments`, {
+        content: comment
+      });
       setComments((prev) => [data, ...prev]);
       setComment("");
     } catch (err) {
-      console.error("Comment failed:", err);
+      console.error("Comment failed:",);
     }
   };
 
   if (loading || !song)
     return (
       <SafeAreaView style={styles.safeArea}>
-        <ActivityIndicator size="large" color="#60a5fa" style={{ marginTop: 60 }} />
+        <ActivityIndicator
+          size="large"
+          color="#60a5fa"
+          style={{ marginTop: 60 }}
+        />
       </SafeAreaView>
     );
+
+  const isThisPlaying = currentSong?._id === song._id && isPlaying;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -252,7 +237,9 @@ export default function MusicDetailScreen({ songId, onBack }: Props) {
         <View style={styles.coverArtCard}>
           <Image
             source={{
-              uri: song.imageUrl || "https://cdn-icons-png.flaticon.com/512/1384/1384060.png",
+              uri:
+                song.imageUrl ||
+                "https://cdn-icons-png.flaticon.com/512/1384/1384060.png",
             }}
             style={styles.coverArt}
             resizeMode="cover"
@@ -262,8 +249,11 @@ export default function MusicDetailScreen({ songId, onBack }: Props) {
         {/* PLAYER */}
         <View style={styles.playerCard}>
           <View style={styles.playerHeader}>
-            <TouchableOpacity style={styles.playBtnBig} onPress={handlePlayPause}>
-              {isPlaying ? (
+            <TouchableOpacity
+              style={styles.playBtnBig}
+              onPress={handlePlayPause}
+            >
+              {isThisPlaying ? (
                 <Pause color="#000" fill="#000" size={30} />
               ) : (
                 <Play color="#000" fill="#000" size={30} />
@@ -272,7 +262,9 @@ export default function MusicDetailScreen({ songId, onBack }: Props) {
 
             <View style={styles.trackInfo}>
               <Text style={styles.trackTitle}>{song.title}</Text>
-              <Text style={styles.artistName}>{song.artistName || song.artist?.fullName}</Text>
+              <Text style={styles.artistName}>
+                {song.artistName || song.artist?.fullName}
+              </Text>
               <Text style={styles.uploadedAt}>Recently uploaded</Text>
             </View>
           </View>
@@ -312,19 +304,27 @@ export default function MusicDetailScreen({ songId, onBack }: Props) {
           <View style={styles.artistCard}>
             <Image
               source={{
-                uri: artist.imageUrl || "https://cdn-icons-png.flaticon.com/512/847/847969.png",
+                uri:
+                  artist.imageUrl ||
+                  "https://cdn-icons-png.flaticon.com/512/847/847969.png",
               }}
               style={styles.artistAvatar}
             />
             <View style={{ flex: 1 }}>
               <Text style={styles.artistNameBig}>{artist.fullName}</Text>
-              <Text style={styles.artistFollowers}>{followersCount} followers</Text>
+              <Text style={styles.artistFollowers}>
+                {followersCount} followers
+              </Text>
             </View>
             <TouchableOpacity
               onPress={toggleFollow}
               style={[
                 styles.followBtn,
-                isFollowing && { backgroundColor: "transparent", borderWidth: 1, borderColor: "#60a5fa" },
+                isFollowing && {
+                  backgroundColor: "transparent",
+                  borderWidth: 1,
+                  borderColor: "#60a5fa",
+                },
               ]}
             >
               <Text
@@ -356,11 +356,15 @@ export default function MusicDetailScreen({ songId, onBack }: Props) {
         <View style={styles.commentsSection}>
           <Text style={styles.commentsTitle}>Comments ({comments.length})</Text>
           {comments.length === 0 ? (
-            <Text style={{ color: "#64748b", marginTop: 8 }}>No comments yet</Text>
+            <Text style={{ color: "#64748b", marginTop: 8 }}>
+              No comments yet
+            </Text>
           ) : (
             comments.map((c, i) => (
               <View key={i} style={{ marginTop: 10 }}>
-                <Text style={{ color: "#fff", fontWeight: "600" }}>{c.user?.fullName || "User"}</Text>
+                <Text style={{ color: "#fff", fontWeight: "600" }}>
+                  {c.user?.fullName || c.userName || "User"}
+                </Text>
                 <Text style={{ color: "#94a3b8" }}>{c.content}</Text>
               </View>
             ))

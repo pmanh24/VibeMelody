@@ -13,11 +13,9 @@ import {
 } from "react-native";
 import {
   Send,
-  Smile,
   Sparkles,
   ChevronLeft,
   MoreVertical,
-  Circle,
 } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useChatStore } from "../store/useChatStore";
@@ -59,13 +57,14 @@ export default function ChatScreen({ onBack }: { onBack: () => void }) {
   const currentUserId = user?._id || user?.id;
   const isArtist = !!user?.isArtist;
 
-  // socket init
+  // 1) socket init + load users
   useEffect(() => {
     if (!currentUserId) return;
     initSocket(currentUserId);
     fetchUsers();
-  }, [currentUserId]);
+  }, [currentUserId, initSocket, fetchUsers]);
 
+  // 2) build chat list (AI + users)
   const chatItems = useMemo(() => {
     const list: any[] = [];
 
@@ -96,26 +95,109 @@ export default function ChatScreen({ onBack }: { onBack: () => void }) {
         raw: u,
       });
     });
-    return list;
-  }, [users, aiMessages, onlineUsers, userActivities]);
 
-  // chọn AI đầu tiên nếu có
+    return list;
+  }, [users, aiMessages, onlineUsers, userActivities, currentUserId, isArtist]);
+
+  // 3) chọn AI (nếu có) hoặc user đầu tiên khi lần đầu có danh sách
   useEffect(() => {
     if (!selectedChat && chatItems.length > 0) {
-      setSelectedChat(chatItems[0]);
-      if (chatItems[0].type === "user" && chatItems[0].raw)
-        setSelectedUser(chatItems[0].raw);
+      const first = chatItems[0];
+      setSelectedChat(first);
+      if (first.type === "user" && first.raw) {
+        setSelectedUser(first.raw);
+        // fetch ngay tin nhắn đầu vào
+        const uid = first.raw._id || first.raw.id;
+        if (uid) fetchMessages(uid);
+      }
+      if (first.type === "ai") {
+        // load lịch sử AI
+        (async () => {
+          try {
+            const res = await api.get("/ai/messages");
+            const serverMessages = res.data?.data?.messages || [];
+            const mapped = serverMessages.map((msg: any) => ({
+              id: msg._id,
+              message: msg.content,
+              time: msg.createdAt
+                ? new Date(msg.createdAt).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })
+                : "",
+              isMe: msg.senderId !== "ai",
+            }));
+            setAiMessages(mapped);
+          } catch {
+            // optional: swallow
+          }
+        })();
+      }
     }
-  }, [chatItems]);
+  }, [chatItems, selectedChat, setSelectedUser, fetchMessages]);
+
+  // 4) khi user chọn 1 chat trong list
+  const handleSelectChat = (chat: any) => {
+    setSelectedChat(chat);
+    setShowChatList(false);
+
+    if (chat.type === "user" && chat.raw) {
+      setSelectedUser(chat.raw);
+      const uid = chat.raw._id || chat.raw.id || chat.id;
+      if (uid) fetchMessages(uid); // <-- LẤY TIN NHẮN THEO USER Ở ĐÂY
+    }
+
+    if (chat.type === "ai") {
+      (async () => {
+        try {
+          const res = await api.get("/ai/messages");
+          const serverMessages = res.data?.data?.messages || [];
+          const mapped = serverMessages.map((msg: any) => ({
+            id: msg._id,
+            message: msg.content,
+            time: msg.createdAt
+              ? new Date(msg.createdAt).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })
+              : "",
+            isMe: msg.senderId !== "ai",
+          }));
+          setAiMessages(mapped);
+        } catch {
+          // optional
+        }
+      })();
+    }
+  };
+
+  // 5) đồng bộ với selectedUser từ store (nếu nơi khác set)
+  useEffect(() => {
+    if (!selectedUser) return;
+    const uid = selectedUser._id || selectedUser.id;
+    if (!uid) return;
+    fetchMessages(uid); // <-- đảm bảo luôn fetch theo selectedUser hiện tại
+  }, [selectedUser, fetchMessages]);
+
+  // 6) scroll xuống cuối khi có tin nhắn mới
+  useEffect(() => {
+    scrollRef.current?.scrollToEnd({ animated: true });
+  }, [aiMessages, messages]);
 
   const displayMessages = useMemo(() => {
     if (!selectedChat) return [];
-    if (selectedChat.type === "ai") return aiMessages;
 
-    return (messages || []).map((m) => ({
+    if (selectedChat.type === "ai") {
+      return aiMessages;
+    }
+
+    return (messages || []).map((m: any) => ({
       id: m._id || m.id,
       message: m.content || m.message,
-      isMe: String(m.senderId) === String(currentUserId),
+      isMe:
+        currentUserId &&
+        (String(m.senderId) === String(currentUserId) ||
+          String(m.sender?._id || m.sender) === String(currentUserId)),
       time: m.createdAt
         ? new Date(m.createdAt).toLocaleTimeString([], {
             hour: "2-digit",
@@ -123,11 +205,11 @@ export default function ChatScreen({ onBack }: { onBack: () => void }) {
           })
         : "",
     }));
-  }, [messages, aiMessages, selectedChat]);
+  }, [messages, aiMessages, selectedChat, currentUserId]);
 
   const handlePreset = (text: string) => {
     setMessage(text);
-    setTimeout(() => inputRef.current?.focus(), 100);
+    setTimeout(() => inputRef.current?.focus(), 80);
   };
 
   const handleSend = async () => {
@@ -139,6 +221,7 @@ export default function ChatScreen({ onBack }: { onBack: () => void }) {
     });
     setMessage("");
 
+    // AI chat
     if (selectedChat.type === "ai") {
       const optimistic = {
         id: Date.now(),
@@ -153,7 +236,17 @@ export default function ChatScreen({ onBack }: { onBack: () => void }) {
         if (aiMsg) {
           setAiMessages((p) => [
             ...p,
-            { id: aiMsg._id, message: aiMsg.content, isMe: false, time: now },
+            {
+              id: aiMsg._id,
+              message: aiMsg.content,
+              isMe: false,
+              time: aiMsg.createdAt
+                ? new Date(aiMsg.createdAt).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })
+                : now,
+            },
           ]);
         }
       } catch {
@@ -170,12 +263,9 @@ export default function ChatScreen({ onBack }: { onBack: () => void }) {
       return;
     }
 
+    // user ↔ user
     sendMessage(selectedChat.id, currentUserId, text);
   };
-
-  useEffect(() => {
-    scrollRef.current?.scrollToEnd({ animated: true });
-  }, [aiMessages, messages]);
 
   const msgs = displayMessages;
 
@@ -204,12 +294,7 @@ export default function ChatScreen({ onBack }: { onBack: () => void }) {
                   styles.chatItem,
                   selectedChat?.id === chat.id && styles.chatItemActive,
                 ]}
-                onPress={() => {
-                  setSelectedChat(chat);
-                  setShowChatList(false);
-                  if (chat.type === "user" && chat.raw)
-                    setSelectedUser(chat.raw);
-                }}
+                onPress={() => handleSelectChat(chat)}
               >
                 <View style={{ position: "relative" }}>
                   <Image source={chat.avatar} style={styles.avatar} />
@@ -226,33 +311,37 @@ export default function ChatScreen({ onBack }: { onBack: () => void }) {
           </ScrollView>
         ) : (
           <>
-            {/* Chat detail */}
+            {/* Chat detail header */}
             <View style={styles.chatHeader}>
               <TouchableOpacity
                 onPress={() => setShowChatList(true)}
                 style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
               >
                 <ChevronLeft color="#94a3b8" size={20} />
-                <Image
-                  source={selectedChat?.avatar}
-                  style={{ width: 36, height: 36, borderRadius: 18 }}
-                />
+                {selectedChat?.avatar && (
+                  <Image
+                    source={selectedChat?.avatar}
+                    style={{ width: 36, height: 36, borderRadius: 18 }}
+                  />
+                )}
                 <View>
                   <Text style={{ color: "#fff", fontWeight: "600" }}>
                     {selectedChat?.name}
                   </Text>
-                  {selectedChat?.type === "user" && (
+                  {selectedChat?.type === "user" ? (
                     <Text style={styles.activityText}>
                       {onlineUsers.has(selectedChat?.id)
                         ? "Online"
-                        : userActivities.get(selectedChat?.id) ||
-                          "Offline"}
+                        : userActivities.get(selectedChat?.id) || "Offline"}
                     </Text>
+                  ) : (
+                    <Text style={styles.activityText}>Online</Text>
                   )}
                 </View>
               </TouchableOpacity>
             </View>
 
+            {/* Messages */}
             <ScrollView
               ref={scrollRef}
               contentContainerStyle={{ padding: 14 }}
@@ -302,14 +391,16 @@ export default function ChatScreen({ onBack }: { onBack: () => void }) {
                       >
                         {m.message}
                       </Text>
-                      <Text
-                        style={[
-                          styles.msgTime,
-                          m.isMe ? styles.myTime : styles.otherTime,
-                        ]}
-                      >
-                        {m.time}
-                      </Text>
+                      {!!m.time && (
+                        <Text
+                          style={[
+                            styles.msgTime,
+                            m.isMe ? styles.myTime : styles.otherTime,
+                          ]}
+                        >
+                          {m.time}
+                        </Text>
+                      )}
                     </View>
                   </View>
                 ))
@@ -330,10 +421,7 @@ export default function ChatScreen({ onBack }: { onBack: () => void }) {
               />
               <TouchableOpacity
                 onPress={handleSend}
-                style={[
-                  styles.sendBtn,
-                  !message.trim() && { opacity: 0.4 },
-                ]}
+                style={[styles.sendBtn, !message.trim() && { opacity: 0.4 }]}
                 disabled={!message.trim()}
               >
                 <Send color="#000" size={22} />

@@ -21,6 +21,7 @@ import {
   Edit,
 } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { api } from "../lib/api";
 
 interface Track {
   _id: string;
@@ -57,8 +58,7 @@ export default function LibraryScreen({
     const fetchTracks = async () => {
       try {
         setLoading(true);
-        const res = await fetch("http://10.33.64.38:5000/api/all"); // ⚠️ đổi URL nếu cần
-        const data = await res.json();
+        const {data} = await api.get("all"); // ⚠️ đổi URL nếu cần
         setTracks(data);
       } catch (err) {
         console.error(err);

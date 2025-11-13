@@ -216,7 +216,6 @@ const uploadOneSong = async (payload: any) => {
   const removeTrack = (id: string) => {
     setTracks((prev) => prev.filter((t) => t.id !== id));
   };
-console.log("oke")
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>

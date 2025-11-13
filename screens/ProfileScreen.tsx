@@ -1,7 +1,5 @@
 // screens/ProfileScreen.tsx
-"use client"
-
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -12,137 +10,213 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
-} from "react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ArrowLeft,
-  Settings,
   Lock,
   Upload,
   UserRound,
   LogOut,
   CheckCircle2,
-} from "lucide-react-native"
-import { api } from "../lib/api"
-import { useUserStore } from "../store/useUserStore"
+  Settings,
+} from "lucide-react-native";
+import * as ImagePicker from "expo-image-picker";
+import { api } from "../lib/api";
+import { useUserStore } from "../store/useUserStore";
 
 type Props = {
-  onBack: () => void
-  onNavigate: (screen: string) => void
-}
+  onBack: () => void;
+  onNavigate: (screen: string) => void;
+};
 
 export default function ProfileScreen({ onBack, onNavigate }: Props) {
-  const { user, logout } = useUserStore()
+  const { user, logout, setUser } = useUserStore() as any;
+
   const [activeSection, setActiveSection] = useState<
     "main" | "updateProfile" | "updatePassword" | "registerArtist"
-  >("main")
+  >("main");
 
-  const [loading, setLoading] = useState(false)
-  const [profile, setProfile] = useState<any>(null)
+  const [loading, setLoading] = useState(false);
+  const [profile, setProfile] = useState<any>(null);
 
-  const [editName, setEditName] = useState("")
-  const [editAvatar, setEditAvatar] = useState("")
+  const [editName, setEditName] = useState("");
+  // imagePreview = hiện trên UI (uri local)
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  // imageData = base64 hoặc data URL để gửi API
+  const [imageData, setImageData] = useState<string | null>(null);
+
   const [passwordForm, setPasswordForm] = useState({
     current: "",
     new: "",
     confirm: "",
-  })
+  });
 
+  // Load profile giống web: /me/main
   useEffect(() => {
-    if (!user) return
-    ;(async () => {
+    if (!user) return;
+
+    (async () => {
       try {
-        setLoading(true)
-        const { data } = await api.get("/me/main")
-        setProfile(data.user)
-        setEditName(data.user?.fullName || data.user?.name || "")
-        setEditAvatar(data.user?.imageUrl || "")
+        setLoading(true);
+        const { data } = await api.get("/me/main");
+        const u = data.user || user;
+        setProfile(u);
+        setEditName(u?.fullName || u?.name || "");
+        const img = u?.imageUrl || null;
+        setImagePreview(img);
+        setImageData(img);
       } catch (e) {
-        console.error("❌ Load profile failed:", e)
+        console.error("❌ Load profile failed:", e);
+        setProfile((prev: any) => prev || user);
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    })()
-  }, [user])
+    })();
+  }, [user]);
 
   const handleLogout = () => {
-    Alert.alert("Confirm", "Do you want to log out?", [
-      { text: "Cancel", style: "cancel" },
+    Alert.alert("Xác nhận", "Bạn có chắc muốn đăng xuất?", [
+      { text: "Huỷ", style: "cancel" },
       {
-        text: "Logout",
+        text: "Đăng xuất",
         style: "destructive",
         onPress: async () => {
-          await logout()
-          onNavigate("login")
+          await logout();
+          onNavigate("login");
         },
       },
-    ])
-  }
+    ]);
+  };
+
+  // Chọn ảnh từ máy (logic tương tự handleImageChange bên web nhưng dùng ImagePicker)
+  const handlePickImage = async () => {
+    try {
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Quyền truy cập", "Cần cho phép truy cập thư viện ảnh.");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.8,
+        base64: true,
+      });
+
+      if (result.canceled || !result.assets || !result.assets[0]) return;
+
+      const asset = result.assets[0];
+      const uri = asset.uri;
+      const base64 = asset.base64;
+
+      // Dùng base64 giống web: data:image/jpeg;base64,...
+      const dataUrl = base64 ? `data:image/jpeg;base64,${base64}` : uri;
+
+      setImagePreview(uri);
+      setImageData(dataUrl);
+    } catch (err) {
+      console.error("Pick image error:", err);
+      Alert.alert("Lỗi", "Không chọn được ảnh");
+    }
+  };
+  const isArtist = !!profile?.isArtist;
 
   const handleSaveProfile = async () => {
-    try {
-      setLoading(true)
-      const payload = {
-        fullName: editName,
-        imageUrl: editAvatar,
-      }
-      const { data } = await api.put("/me/profile", payload)
-      setProfile((p: any) => ({ ...p, ...data }))
-      Alert.alert("✅ Success", "Profile updated successfully")
-      setActiveSection("main")
-    } catch (e: any) {
-      console.error(e)
-      Alert.alert("Error", e.response?.data?.message || "Update failed")
-    } finally {
-      setLoading(false)
+    if (!editName.trim()) {
+      Alert.alert("Lỗi", "Vui lòng nhập tên hiển thị");
+      return;
     }
-  }
+
+    try {
+      setLoading(true);
+      const payload: any = {
+        fullName: editName.trim(),
+      };
+      if (imageData) {
+        payload.imageUrl = imageData;
+      }
+
+      const { data } = await api.put("/me/profile", payload);
+
+      // Cập nhật local profile
+      setProfile((prev: any) =>
+        prev
+          ? {
+              ...prev,
+              fullName: data.fullName || prev.fullName,
+              imageUrl: data.imageUrl || prev.imageUrl,
+            }
+          : prev
+      );
+
+      // Cập nhật luôn user trong store (nếu có)
+      if (setUser) {
+        setUser({
+          ...(user || {}),
+          fullName: data.fullName || user?.fullName,
+          imageUrl: data.imageUrl || user?.imageUrl,
+        });
+      }
+
+      Alert.alert("✅ Thành công", "Cập nhật hồ sơ thành công");
+      setActiveSection("main");
+    } catch (e: any) {
+      console.error("Update profile error:", e);
+      Alert.alert(
+        "Lỗi",
+        e?.response?.data?.message || "Không cập nhật được hồ sơ"
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleChangePassword = async () => {
-    if (
-      !passwordForm.current ||
-      !passwordForm.new ||
-      !passwordForm.confirm
-    ) {
-      Alert.alert("Error", "Please fill all fields")
-      return
+    if (!passwordForm.current || !passwordForm.new || !passwordForm.confirm) {
+      Alert.alert("Lỗi", "Vui lòng điền đầy đủ mật khẩu");
+      return;
     }
     if (passwordForm.new !== passwordForm.confirm) {
-      Alert.alert("Error", "New passwords do not match")
-      return
+      Alert.alert("Lỗi", "Mật khẩu mới không khớp");
+      return;
     }
 
     try {
-      setLoading(true)
+      setLoading(true);
       await api.put("/me/password", {
         currentPassword: passwordForm.current,
         newPassword: passwordForm.new,
-      })
-      Alert.alert("✅ Success", "Password changed successfully")
-      setPasswordForm({ current: "", new: "", confirm: "" })
-      setActiveSection("main")
+      });
+
+      Alert.alert("✅ Thành công", "Đổi mật khẩu thành công");
+      setPasswordForm({ current: "", new: "", confirm: "" });
+      setActiveSection("main");
     } catch (e: any) {
+      console.error("Change password error:", e);
       Alert.alert(
-        "Error",
-        e.response?.data?.message || "Change password failed"
-      )
+        "Lỗi",
+        e?.response?.data?.message || "Không đổi được mật khẩu"
+      );
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   if (loading && !profile) {
     return (
       <View style={[styles.safeArea, { justifyContent: "center" }]}>
         <ActivityIndicator color="#60a5fa" size="large" />
       </View>
-    )
+    );
   }
 
   const avatarUrl =
-    editAvatar ||
+    imagePreview ||
     profile?.imageUrl ||
-    "https://cdn-icons-png.flaticon.com/512/847/847969.png"
+    "https://cdn-icons-png.flaticon.com/512/847/847969.png";
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -197,13 +271,27 @@ export default function ProfileScreen({ onBack, onNavigate }: Props) {
                 <Text style={styles.menuText}>Change Password</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.menuBtn}
-                onPress={() => setActiveSection("registerArtist")}
-              >
-                <Settings color="#60a5fa" size={20} />
-                <Text style={styles.menuText}>Register as Artist</Text>
-              </TouchableOpacity>
+                 {/*  chỉ user thường mới thấy Register Artist */}
+              {!isArtist && (
+                <TouchableOpacity
+                  style={styles.menuBtn}
+                  onPress={() => onNavigate("registerArtist")}
+                >
+                  <Settings color="#60a5fa" size={20} />
+                  <Text style={styles.menuText}>Register as Artist</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* nếu đã là artist -> mở ArtistProfileScreen */}
+              {isArtist && (
+                <TouchableOpacity
+                  style={styles.menuBtn}
+                  onPress={() => onNavigate("artistProfile")}
+                >
+                  <Settings color="#60a5fa" size={20} />
+                  <Text style={styles.menuText}>Artist Profile</Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             <TouchableOpacity
@@ -242,14 +330,23 @@ export default function ProfileScreen({ onBack, onNavigate }: Props) {
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={styles.label}>Avatar URL</Text>
-              <TextInput
-                value={editAvatar}
-                onChangeText={setEditAvatar}
-                style={styles.input}
-                placeholder="https://..."
-                placeholderTextColor="#64748b"
-              />
+              <Text style={styles.label}>Profile Picture</Text>
+              <TouchableOpacity
+                style={styles.imagePicker}
+                onPress={handlePickImage}
+                activeOpacity={0.8}
+              >
+                <Image
+                  source={{ uri: avatarUrl }}
+                  style={styles.imagePreview}
+                />
+                <View style={styles.imagePickerTextWrap}>
+                  <Upload color="#60a5fa" size={18} />
+                  <Text style={styles.imagePickerText}>
+                    Chọn ảnh từ thư viện
+                  </Text>
+                </View>
+              </TouchableOpacity>
             </View>
 
             <TouchableOpacity
@@ -291,9 +388,7 @@ export default function ProfileScreen({ onBack, onNavigate }: Props) {
               <Text style={styles.label}>New Password</Text>
               <TextInput
                 value={passwordForm.new}
-                onChangeText={(t) =>
-                  setPasswordForm((p) => ({ ...p, new: t }))
-                }
+                onChangeText={(t) => setPasswordForm((p) => ({ ...p, new: t }))}
                 style={styles.input}
                 secureTextEntry
               />
@@ -321,36 +416,9 @@ export default function ProfileScreen({ onBack, onNavigate }: Props) {
           </View>
         )}
 
-        {/* REGISTER ARTIST */}
-        {activeSection === "registerArtist" && (
-          <View style={styles.formBlock}>
-            <TouchableOpacity
-              style={styles.backInline}
-              onPress={() => setActiveSection("main")}
-            >
-              <ArrowLeft color="#60a5fa" size={20} />
-              <Text style={styles.backText}>Back</Text>
-            </TouchableOpacity>
-
-            <Text style={styles.formTitle}>Register as Artist</Text>
-
-            <Text style={[styles.label, { marginBottom: 16 }]}>
-              By registering, you can upload your music and manage your artist
-              profile.
-            </Text>
-
-            <TouchableOpacity
-              style={styles.saveBtn}
-              onPress={() => Alert.alert("🎵", "Artist registration sent!")}
-            >
-              <Settings color="#000" size={18} />
-              <Text style={styles.saveText}>Register Now</Text>
-            </TouchableOpacity>
-          </View>
-        )}
       </ScrollView>
     </SafeAreaView>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -400,13 +468,16 @@ const styles = StyleSheet.create({
     color: "#fff",
     marginBottom: 20,
   },
+  formGroup: {
+    marginBottom: 12,
+  },
   label: { color: "#cbd5e1", marginBottom: 6 },
   input: {
     backgroundColor: "#1e293b",
     color: "#fff",
     borderRadius: 12,
     padding: 12,
-    marginBottom: 14,
+    marginBottom: 4,
   },
   saveBtn: {
     backgroundColor: "#60a5fa",
@@ -421,4 +492,26 @@ const styles = StyleSheet.create({
   saveText: { color: "#000", fontWeight: "700" },
   backInline: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
   backText: { color: "#60a5fa", marginLeft: 6 },
-})
+  imagePicker: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1e293b",
+    borderRadius: 12,
+    padding: 10,
+  },
+  imagePreview: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    marginRight: 12,
+  },
+  imagePickerTextWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  imagePickerText: {
+    color: "#e5e7eb",
+    fontSize: 14,
+  },
+});

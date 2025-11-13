@@ -13,6 +13,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, Check } from "lucide-react-native";
 
+// ⚠️ cần cài: expo install react-native-qrcode-svg
+import QRCode from "react-native-qrcode-svg";
+
 // ✅ PayOS in-app WebView + API
 import PayOSWebViewModal from "../components/PayOSWebViewModal";
 import { payosCreatePayment, payosGetStatus } from "../api/payos.api";
@@ -22,10 +25,10 @@ type PlanKey = "1m" | "3m" | "6m";
 type Plan = {
   key: PlanKey;
   title: string;
-  price: string;     // hiển thị
-  per: string;       // “/ 1 month”, “/ 3 months”, ...
+  price: string; // hiển thị
+  per: string; // “/ 1 month”, “/ 3 months”, ...
   badge?: "Most Popular" | "Best Value";
-  note?: string;     // “Save 0%”, …
+  note?: string; // “Save 0%”, …
   features: string[];
 };
 
@@ -76,7 +79,7 @@ const PLANS: Plan[] = [
 
 type Props = {
   onBack: () => void;
-  onSubscribe?: (plan: Plan) => void; // callback khi nhấn CTA (tuỳ chọn)
+  onSubscribe?: (plan: Plan) => void;
 };
 
 export default function RegisterArtistScreen({ onBack, onSubscribe }: Props) {
@@ -86,6 +89,9 @@ export default function RegisterArtistScreen({ onBack, onSubscribe }: Props) {
   const [payVisible, setPayVisible] = useState(false);
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const [currentOrder, setCurrentOrder] = useState<number | null>(null);
+
+  // QR content từ PayOS
+  const [qrContent, setQrContent] = useState<string | null>(null);
 
   // Deep link scheme để PayOS redirect
   const RETURN_SCHEME = "myapp://payos/return";
@@ -116,20 +122,28 @@ export default function RegisterArtistScreen({ onBack, onSubscribe }: Props) {
       };
 
       const res = await payosCreatePayment(payload);
-      console.log('res', res);
-      // Backend trả về { checkoutUrl, ... }
-      
-      if (!res?.data.checkoutUrl) {
-        
-        throw new Error("Thiếu checkoutUrl từ backend");
+      console.log("PayOS createPayment res:", res);
+
+      const checkout = res?.data?.checkoutUrl;
+      const qr = res?.data?.qrCode;
+
+      if (!checkout && !qr) {
+        throw new Error("Thiếu checkoutUrl hoặc qrCode từ backend");
       }
 
-      setCheckoutUrl(res.data.checkoutUrl);
-      setPayVisible(true);
+      if (checkout) {
+        setCheckoutUrl(checkout);
+        setPayVisible(true); // mở WebView nếu dùng web thanh toán
+      }
 
-      // callback tuỳ chọn của bạn
-      onSubscribe?.(plan);
+      if (qr) {
+        setQrContent(qr); // hiển thị QR để user quét
+      }
+
+      // ❌ KHÔNG gọi onSubscribe ở đây nữa
+      // onSubscribe chỉ gọi khi PayOS báo PAID trong handleReturn
     } catch (e: any) {
+      console.error("Create payment error:", e);
       Alert.alert("Lỗi", e?.message ?? "Không tạo được link thanh toán");
     }
   };
@@ -139,7 +153,8 @@ export default function RegisterArtistScreen({ onBack, onSubscribe }: Props) {
     try {
       if (!currentOrder) return;
       const statusRes = await payosGetStatus(currentOrder);
-      // tuỳ response backend, ví dụ { data: { status: "PAID" | "PENDING" | ... } }
+      console.log("PayOS status:", statusRes);
+
       const s =
         statusRes?.data?.status ??
         statusRes?.status ??
@@ -148,12 +163,22 @@ export default function RegisterArtistScreen({ onBack, onSubscribe }: Props) {
 
       const upper = String(s).toUpperCase();
       if (upper === "PAID" || upper === "SUCCESS") {
-        Alert.alert("Thành công", "Thanh toán thành công. Bạn đã trở thành Artist!");
-        // TODO: cập nhật quyền/role ở client hoặc refetch profile
+        const plan = PLANS.find((p) => p.key === selected)!;
+
+        // 👉 Đây mới là lúc gọi onSubscribe (App.tsx có thể navigate sang PaymentSuccessScreen)
+        onSubscribe?.(plan);
+
+        Alert.alert(
+          "Thành công",
+          "Thanh toán thành công. Bạn đã trở thành Artist! Đăng xuất để trải nghiệm"
+        );
+
+        // TODO: có thể refetch /me/main để cập nhật isArtist, subscription ở client
       } else {
         Alert.alert("Trạng thái", `Kết quả: ${s}`);
       }
     } catch (e: any) {
+      console.error("Check status error:", e);
       Alert.alert("Lỗi", e?.message ?? "Không kiểm tra được trạng thái thanh toán");
     } finally {
       setPayVisible(false);
@@ -224,7 +249,9 @@ export default function RegisterArtistScreen({ onBack, onSubscribe }: Props) {
                   <Text style={styles.per}> {plan.per}</Text>
                 </Text>
 
-                {!!plan.note && <Text style={styles.saving}>{plan.note}</Text>}
+                {!!plan.note && (
+                  <Text style={styles.saving}>{plan.note}</Text>
+                )}
 
                 {/* Feature list */}
                 <View style={{ marginTop: 12, gap: 8 }}>
@@ -246,6 +273,19 @@ export default function RegisterArtistScreen({ onBack, onSubscribe }: Props) {
             );
           })}
         </View>
+
+        {/* QR PAYOS */}
+        {qrContent && (
+          <View style={styles.qrBox}>
+            <Text style={styles.qrTitle}>Quét QR để thanh toán</Text>
+            <View style={styles.qrWrapper}>
+              <QRCode value={qrContent} size={180} />
+            </View>
+            <Text style={styles.qrHint}>
+              Mở app ngân hàng và chọn Quét QR để thanh toán hoá đơn này.
+            </Text>
+          </View>
+        )}
 
         {/* WHAT YOU'LL GET */}
         <View style={styles.benefitBox}>
@@ -397,4 +437,32 @@ const styles = StyleSheet.create({
   ctaText: { color: "#052e16", fontWeight: "800", fontSize: 16 },
 
   terms: { color: "#64748b", fontSize: 12, textAlign: "center" },
+
+  qrBox: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: "#020617",
+    borderWidth: 1,
+    borderColor: "#1f2937",
+    alignItems: "center",
+  },
+  qrTitle: {
+    color: "#e5e7eb",
+    fontWeight: "700",
+    fontSize: 14,
+    marginBottom: 12,
+  },
+  qrWrapper: {
+    padding: 8,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+  },
+  qrHint: {
+    color: "#94a3b8",
+    fontSize: 12,
+    textAlign: "center",
+    marginTop: 10,
+  },
 });

@@ -50,7 +50,7 @@ export default function AuthLoginScreen({
           placeholder="Enter your email"
           placeholderTextColor="#64748b"
           value={email}
-          onChangeText={setEmail}
+          onChangeText={(t) =>setEmail(t)}
           autoCapitalize="none"
         />
 
@@ -62,7 +62,7 @@ export default function AuthLoginScreen({
             placeholder="Enter your password"
             placeholderTextColor="#64748b"
             value={pw}
-            onChangeText={setPw}
+            onChangeText={(t) =>setPw(t)}
             secureTextEntry={!showPw}
           />
           <TouchableOpacity
@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   btn: {
-    backgroundColor: "#22c55e",
+    backgroundColor: "#60a5fa",
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: "center",

@@ -1,7 +1,8 @@
 // App.tsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { View, StyleSheet, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Audio } from "expo-av";
 
 // screens
 import SplashScreen from "./screens/SplashScreen";
@@ -25,7 +26,8 @@ import MiniPlayer from "./components/MiniPlayer";
 
 // store
 import { useUserStore } from "./store/useUserStore";
-
+import { usePlayerStore } from "./store/usePlayerStore";
+import ArtistProfileScreen from "./screens/ArtistProfileScreen";
 // types
 export interface Song {
   _id: string;
@@ -45,18 +47,26 @@ type Screen =
   | "manageMusic"
   | "authLogin"
   | "authSignup"
-  | "registerArtist";
+  | "registerArtist"
+  | "artistProfile";
 
 export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [currentScreen, setCurrentScreen] = useState<Screen>("home");
-  const [currentSong, setCurrentSong] = useState<Song | null>(null);
   const [currentAlbum, setCurrentAlbum] = useState<any | null>(null);
   const [currentSongId, setCurrentSongId] = useState<string | null>(null);
-
+  const soundRef = useRef<Audio.Sound | null>(null);
   const user = useUserStore((s) => s.user);
   const checkAuth = useUserStore((s) => s.checkAuth);
-
+  const {
+    currentSong,
+    isPlaying,
+    volume,
+    setProgress,
+    setDuration,
+    playNext,
+    setCurrentSong,
+  } = usePlayerStore();
   useEffect(() => {
     (async () => {
       await checkAuth();
@@ -66,6 +76,72 @@ export default function App() {
     return () => clearTimeout(timer);
   }, []);
 
+  // Audio mode
+  useEffect(() => {
+    Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: true,
+      shouldDuckAndroid: true,
+    }).catch(() => {});
+  }, []);
+
+  // Khi đổi bài
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!currentSong?.audioUrl) return;
+      try {
+        if (soundRef.current) {
+          await soundRef.current.unloadAsync();
+          soundRef.current = null;
+        }
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: currentSong.audioUrl },
+          { shouldPlay: isPlaying, volume: volume ?? 0.7 },
+          (st) => {
+            if (!st?.isLoaded) return;
+            if (Number.isFinite(st.positionMillis))
+              usePlayerStore.setState({
+                currentTime: Math.floor(st.positionMillis / 1000),
+              });
+            if (Number.isFinite(st.durationMillis))
+              setDuration(Math.floor(st.durationMillis / 1000));
+            if (st.didJustFinish) playNext();
+          }
+        );
+        if (cancelled) {
+          await sound.unloadAsync();
+          return;
+        }
+        soundRef.current = sound;
+      } catch {}
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentSong]);
+
+  // Play/Pause
+  useEffect(() => {
+    (async () => {
+      const s = soundRef.current;
+      if (!s) return;
+      const st = await s.getStatusAsync();
+      if (!st.isLoaded) return;
+      if (isPlaying && !st.isPlaying) await s.playAsync();
+      if (!isPlaying && st.isPlaying) await s.pauseAsync();
+    })();
+  }, [isPlaying]);
+
+  // Volume
+  useEffect(() => {
+    (async () => {
+      const s = soundRef.current;
+      if (!s) return;
+      const st = await s.getStatusAsync();
+      if (st.isLoaded) await s.setVolumeAsync(volume ?? 0.7);
+    })();
+  }, [volume]);
   if (isLoading) return <SplashScreen />;
 
   const isTabScreen = (s: Screen): s is TabScreen =>
@@ -87,6 +163,7 @@ export default function App() {
 
   const handlePlay = (trackLike: any) => {
     const song = normalizeToSong(trackLike);
+    console.log(song);
     if (!song) return;
     setCurrentSong(song);
     setCurrentScreen("detail");
@@ -156,6 +233,7 @@ export default function App() {
                         break;
                       case "logout":
                         useUserStore.getState().logout();
+                        usePlayerStore.getState().resetPlayer();
                         setCurrentScreen("home");
                         break;
                       default:
@@ -185,6 +263,25 @@ export default function App() {
                 onBack={() => setCurrentScreen("authLogin")}
                 onLogin={() => setCurrentScreen("authLogin")}
                 onSuccess={() => setCurrentScreen("profile")}
+              />
+            )}
+            {currentScreen === "artistProfile" && (
+              <ArtistProfileScreen
+                onBack={goBack}
+                onOpenTrack={(id) => {
+                  setCurrentSongId(id);
+                  setCurrentScreen("detail");
+                }}
+                onOpenAlbum={(album) => {
+                  setCurrentAlbum(album);
+                  setCurrentScreen("album");
+                }}
+                onLogout={() => {
+                  // 💥 logout cứng, không cần gọi API
+                  useUserStore.getState().logout();
+                  usePlayerStore.getState().resetPlayer();
+                  setCurrentScreen("authLogin");
+                }}
               />
             )}
 
@@ -256,8 +353,23 @@ export default function App() {
           {/* Bottom tabs */}
           {isTabScreen(currentScreen) && (
             <BottomTabBar
-              currentScreen={currentScreen as TabScreen}
-              onNavigate={(tab) => setCurrentScreen(tab)}
+              currentScreen={currentScreen}
+              onNavigate={(tab) => {
+                if (tab === "profile") {
+                  if (!user) {
+                    setCurrentScreen("authLogin");
+                    return;
+                  }
+
+                  if ((user as any).isArtist) {
+                    setCurrentScreen("artistProfile");
+                  } else {
+                    setCurrentScreen("profile");
+                  }
+                } else {
+                  setCurrentScreen(tab);
+                }
+              }}
             />
           )}
         </View>
